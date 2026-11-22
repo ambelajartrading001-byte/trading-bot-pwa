@@ -523,3 +523,102 @@ simulateAiSignal = async function() {
 };
 
 renderAiPerformance();
+
+// === SPOT XAUUSD REAL-TIME FEED (DIRECT FOREX / BULLION) ===
+let xauPollTimer = null;
+let lastSpotPrice = null;
+let sessionOpenPrice = null;
+
+async function fetchTrueSpotXau() {
+  // Sumber 1: Gold-API (Spot XAU/USD murni, tanpa delay & tanpa API key)
+  try {
+    const res = await fetch('https://api.gold-api.com/price/XAU', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.price) return parseFloat(data.price);
+    }
+  } catch (e) {}
+
+  // Sumber 2: Swissquote Forex Live Feed (XAU/USD Bid/Ask)
+  try {
+    const res = await fetch('https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      const spreadProfile = data?.[0]?.spreadProfilePrices?.[0];
+      if (spreadProfile && spreadProfile.bid && spreadProfile.ask) {
+        return (parseFloat(spreadProfile.bid) + parseFloat(spreadProfile.ask)) / 2;
+      }
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+// Override loader chart & stream agar 100% tersinkron dengan harga Spot XAUUSD asli
+loadGoldHistoryAndStream = async function(tf) {
+  const statusEl = document.getElementById('wsStatus');
+  if (liveSocket) { try { liveSocket.close(); } catch (e) {} }
+  if (xauPollTimer) clearInterval(xauPollTimer);
+
+  const spotNow = await fetchTrueSpotXau();
+
+  try {
+    // Ambil struktur pergerakan candle historis lalu kalibrasikan ke harga Spot XAUUSD terkini
+    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=${tf}&limit=120`);
+    const raw = await res.json();
+    const rawLastClose = parseFloat(raw[raw.length - 1][4]);
+    const offset = spotNow ? (spotNow - rawLastClose) : 0;
+
+    const candles = raw.map(d => ({
+      time: Math.floor(d[0] / 1000),
+      open: +(parseFloat(d[1]) + offset).toFixed(2),
+      high: +(parseFloat(d[2]) + offset).toFixed(2),
+      low: +(parseFloat(d[3]) + offset).toFixed(2),
+      close: +(parseFloat(d[4]) + offset).toFixed(2)
+    }));
+
+    candleSeries.setData(candles);
+    lastCandle = candles[candles.length - 1];
+    sessionOpenPrice = candles[candles.length - 24]?.open || lastCandle.open;
+
+    if (spotNow) {
+      lastSpotPrice = spotNow;
+      updateLiveTickerUI(spotNow, sessionOpenPrice);
+      syncLevelsWithLivePrice(spotNow, candles);
+    } else {
+      syncLevelsWithLivePrice(lastCandle.close, candles);
+    }
+
+    if (statusEl) {
+      statusEl.style.color = 'var(--mint)';
+      statusEl.textContent = spotNow ? '● SPOT XAUUSD LIVE' : '● LIVE FEED';
+    }
+  } catch (err) {
+    if (spotNow) {
+      lastSpotPrice = spotNow;
+      updateLiveTickerUI(spotNow, spotNow);
+    }
+  }
+
+  // Polling harga Spot XAUUSD asli setiap 2 detik agar chart & angka ticker selalu presisi
+  xauPollTimer = setInterval(async () => {
+    const liveXau = await fetchTrueSpotXau();
+    if (!liveXau) return;
+
+    lastSpotPrice = liveXau;
+    if (!sessionOpenPrice) sessionOpenPrice = liveXau;
+    updateLiveTickerUI(liveXau, sessionOpenPrice);
+
+    if (lastCandle && candleSeries) {
+      lastCandle.close = +liveXau.toFixed(2);
+      lastCandle.high = Math.max(lastCandle.high, lastCandle.close);
+      lastCandle.low = Math.min(lastCandle.low, lastCandle.close);
+      candleSeries.update(lastCandle);
+    }
+  }, 2000);
+};
+
+// Jalankan ulang pemuatan chart dengan feed Spot XAUUSD baru
+if (typeof chart !== 'undefined' && chart) {
+  loadGoldHistoryAndStream(currentTf || '1h');
+}
