@@ -151,3 +151,157 @@ if ('serviceWorker' in navigator) {
 setInterval(updateSessionAndClock, 1000);
 updateSessionAndClock();
 calcLot();
+
+// === REAL-TIME CANDLESTICK & LIVE STREAM ENGINE ===
+let chart, candleSeries, entryLine, slLine, tpLine, liveSocket;
+let currentTf = '1h';
+let lastCandle = null;
+
+function initRealtimeChart() {
+  const container = document.getElementById('realtimeChart');
+  if (!container || typeof LightweightCharts === 'undefined') return;
+
+  chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 230,
+    layout: { background: { color: '#121722' }, textColor: '#8b96ab', fontSize: 11 },
+    grid: {
+      vertLines: { color: 'rgba(255,255,255,0.04)' },
+      horzLines: { color: 'rgba(255,255,255,0.04)' }
+    },
+    rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
+    timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true }
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#00e5a8',
+    downColor: '#ff5c75',
+    borderVisible: false,
+    wickUpColor: '#00e5a8',
+    wickDownColor: '#ff5c75'
+  });
+
+  window.addEventListener('resize', () => {
+    if (chart && container) chart.applyOptions({ width: container.clientWidth });
+  });
+
+  loadGoldHistoryAndStream(currentTf);
+}
+
+async function loadGoldHistoryAndStream(tf) {
+  const statusEl = document.getElementById('wsStatus');
+  try {
+    // Ambil 120 candle historis PAXGUSDT (1:1 Spot Gold XAUUSD) dari API publik
+    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=${tf}&limit=120`);
+    const raw = await res.json();
+    const candles = raw.map(d => ({
+      time: Math.floor(d[0] / 1000),
+      open: parseFloat(d[1]),
+      high: parseFloat(d[2]),
+      low: parseFloat(d[3]),
+      close: parseFloat(d[4])
+    }));
+
+    candleSeries.setData(candles);
+    lastCandle = candles[candles.length - 1];
+    syncLevelsWithLivePrice(lastCandle.close, candles);
+    connectGoldStream(tf);
+    if (statusEl) { statusEl.style.color = 'var(--mint)'; statusEl.textContent = '● LIVE FEED'; }
+  } catch (e) {
+    if (statusEl) { statusEl.style.color = 'var(--gold)'; statusEl.textContent = '● SIMULATED TICK'; }
+    startFallbackTick();
+  }
+}
+
+function connectGoldStream(tf) {
+  if (liveSocket) liveSocket.close();
+  liveSocket = new WebSocket(`wss://stream.binance.com:9443/ws/paxgusdt@kline_${tf}`);
+  liveSocket.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (!msg.k) return;
+    const k = msg.k;
+    const bar = {
+      time: Math.floor(k.t / 1000),
+      open: parseFloat(k.o),
+      high: parseFloat(k.h),
+      low: parseFloat(k.l),
+      close: parseFloat(k.c)
+    };
+    candleSeries.update(bar);
+    updateLiveTickerUI(bar.close, bar.open);
+  };
+}
+
+function startFallbackTick() {
+  let price = 2654.80;
+  const now = Math.floor(Date.now() / 1000);
+  const seed = [];
+  for (let i = 60; i >= 0; i--) {
+    const o = price;
+    const c = +(o + (Math.random() - 0.48) * 3.2).toFixed(2);
+    seed.push({ time: now - i * 3600, open: o, high: Math.max(o, c) + 1.1, low: Math.min(o, c) - 1.1, close: c });
+    price = c;
+  }
+  candleSeries.setData(seed);
+  lastCandle = seed[seed.length - 1];
+  syncLevelsWithLivePrice(price, seed);
+
+  setInterval(() => {
+    const delta = (Math.random() - 0.5) * 0.65;
+    lastCandle.close = +(lastCandle.close + delta).toFixed(2);
+    lastCandle.high = Math.max(lastCandle.high, lastCandle.close);
+    lastCandle.low = Math.min(lastCandle.low, lastCandle.close);
+    candleSeries.update(lastCandle);
+    updateLiveTickerUI(lastCandle.close, lastCandle.open);
+  }, 1200);
+}
+
+function updateLiveTickerUI(close, open) {
+  const priceEl = document.getElementById('livePrice');
+  const chgEl = document.getElementById('priceChange');
+  if (priceEl) {
+    priceEl.textContent = close.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (chgEl && open) {
+    const diff = close - open;
+    const pct = (diff / open) * 100;
+    const sign = diff >= 0 ? '+' : '';
+    chgEl.style.color = diff >= 0 ? 'var(--mint)' : 'var(--red)';
+    chgEl.textContent = `${sign}${diff.toFixed(2)} (${sign}${pct.toFixed(2)}%) • Real-Time XAU`;
+  }
+}
+
+function syncLevelsWithLivePrice(price, candles) {
+  // Hitung ATR(14) sederhana dari 14 candle terakhir untuk menyesuaikan Entry, SL (1.5R), TP (3.75R)
+  const slice = candles.slice(-15);
+  let trSum = 0;
+  for (let i = 1; i < slice.length; i++) {
+    trSum += Math.max(slice[i].high - slice[i].low, Math.abs(slice[i].high - slice[i-1].close));
+  }
+  const atr = slice.length > 1 ? trSum / (slice.length - 1) : 7.5;
+  const entry = +(price - atr * 0.25).toFixed(2);
+  const sl = +(entry - atr * 1.5).toFixed(2);
+  const tp = +(entry + atr * 3.75).toFixed(2);
+  const chand = +(price - atr * 1.1).toFixed(2);
+
+  document.getElementById('entryPrice').textContent = entry.toFixed(2);
+  document.getElementById('slPrice').textContent = sl.toFixed(2);
+  document.getElementById('tpPrice').textContent = tp.toFixed(2);
+  document.getElementById('chandelierPrice').textContent = chand.toFixed(2);
+  calcLot();
+
+  // Gambar garis Entry, SL, TP langsung di atas chart
+  [entryLine, slLine, tpLine].forEach(l => { if (l) candleSeries.removePriceLine(l); });
+  entryLine = candleSeries.createPriceLine({ price: entry, color: '#f5b041', lineWidth: 1, lineStyle: 2, title: 'ENTRY' });
+  slLine = candleSeries.createPriceLine({ price: sl, color: '#ff5c75', lineWidth: 1, lineStyle: 2, title: 'SL 1.5R' });
+  tpLine = candleSeries.createPriceLine({ price: tp, color: '#00e5a8', lineWidth: 1, lineStyle: 2, title: 'TP 3.75R' });
+}
+
+function changeChartTf(tf, btn) {
+  currentTf = tf;
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadGoldHistoryAndStream(tf);
+}
+
+window.addEventListener('DOMContentLoaded', initRealtimeChart);
