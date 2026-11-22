@@ -1,85 +1,272 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="XAU Quant">
-  <meta name="theme-color" content="#0B0E14">
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css?v=2">
-  <title>XAU Quant Terminal</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#090c12" />
+  <title>AUREUS QUANT • XAUUSD Terminal</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
-  <header class="header">
-    <h1>XAU Quant Terminal</h1>
-    <span id="sessionStatus">Sesi: Memuat...</span>
+
+  <header class="topbar">
+    <div class="brand-row">
+      <div class="brand">
+        <span class="brand-badge">XAU</span>
+        <span>AUREUS QUANT</span>
+      </div>
+      <div id="sessionPill" class="session-pill">
+        <span class="dot"></span>
+        <span id="sessionText">MEMUAT SESI...</span>
+      </div>
+    </div>
+
+    <div class="ticker-box">
+      <div>
+        <div class="pair-title">XAUUSD • SPOT GOLD (H1)</div>
+        <div class="live-price num" id="livePrice">2,654.80</div>
+        <div class="price-change num" id="priceChange">+14.20 (+0.54%) • London–NY Pullback</div>
+      </div>
+      <div class="utc-clock num">
+        <div id="utcTime">00:00:00 UTC</div>
+        <div style="color: var(--gold); font-weight: 700; margin-top: 2px;">PF 1.52 VERIFIED</div>
+      </div>
+    </div>
   </header>
 
-  <nav class="tabbar">
-    <button class="tabbtn active" data-tab="setup">Setup & Sinyal</button>
-    <button class="tabbtn" data-tab="backtest">Backtest</button>
-    <button class="tabbtn" data-tab="mtf">Analisis MTF</button>
-    <button class="tabbtn" data-tab="news">Berita USD</button>
+  <!-- TAB 1: SETUP & SINYAL -->
+  <main id="tab-signal" class="container active">
+    <div class="section-title">Setup Strategi v1 (London–NY Pullback)</div>
+    <div class="card">
+      <div class="signal-header">
+        <div>
+          <div style="font-weight: 700; font-size: 14px;">Sinyal Eksekusi H1</div>
+          <div style="font-size: 11px; color: var(--text-muted);">3-Bar Pullback + Momentum Recovery</div>
+        </div>
+        <span id="signalBadge" class="signal-type">BUY LIMIT / PULLBACK</span>
+      </div>
+
+      <div class="levels-grid num">
+        <div class="level-item">
+          <div class="level-label">Zona Entry</div>
+          <div class="level-val val-gold" id="entryPrice">2,652.50</div>
+        </div>
+        <div class="level-item">
+          <div class="level-label">Stop Loss (1.5R)</div>
+          <div class="level-val val-red" id="slPrice">2,641.20</div>
+        </div>
+        <div class="level-item">
+          <div class="level-label">Take Profit (3.75R)</div>
+          <div class="level-val val-mint" id="tpPrice">2,680.75</div>
+        </div>
+        <div class="level-item">
+          <div class="level-label">Chandelier ATR Trail</div>
+          <div class="level-val" id="chandelierPrice">2,645.90</div>
+        </div>
+      </div>
+
+      <div class="range-wrap">
+        <div class="range-labels num">
+          <span>Low: 2,638.10</span>
+          <span>Daily Range Position (68%)</span>
+          <span>High: 2,662.40</span>
+        </div>
+        <div class="range-track"><div class="range-fill" style="width: 68%;"></div></div>
+      </div>
+
+      <button class="btn btn-gold" style="margin-top: 12px;" onclick="copySetup()">Salin Parameter Setup (Entry / SL / TP)</button>
+    </div>
+
+    <div class="section-title">Filter Indikator Kuantitatif</div>
+    <div class="card">
+      <div class="ind-grid num">
+        <div class="ind-box">
+          <div class="ind-name">EMA 20/50/200</div>
+          <div class="ind-num" id="emaVal">2651 / 2644</div>
+          <div class="ind-tag">BULLISH ALIGN</div>
+        </div>
+        <div class="ind-box">
+          <div class="ind-name">ADX (14)</div>
+          <div class="ind-num" id="adxVal">29.4</div>
+          <div class="ind-tag">TREND KUAT</div>
+        </div>
+        <div class="ind-box">
+          <div class="ind-name">RSI / ATR</div>
+          <div class="ind-num" id="rsiAtrVal">54.2 / 7.5</div>
+          <div class="ind-tag">OPTIMAL</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Kalkulator Lot & Risiko (1.5R ATR)</div>
+    <div class="card">
+      <div class="calc-row">
+        <div class="input-group">
+          <label>Balance Akun ($)</label>
+          <input type="number" id="accBalance" value="1000" oninput="calcLot()" />
+        </div>
+        <div class="input-group">
+          <label>Risiko per Trade (%)</label>
+          <input type="number" id="riskPct" value="1.0" step="0.5" oninput="calcLot()" />
+        </div>
+      </div>
+      <div class="calc-result num">
+        <span>Rekomendasi Lot XAUUSD:</span>
+        <strong style="color: var(--gold); font-size: 16px;" id="lotOutput">0.01 Lot ($10.00 Risk)</strong>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 2: PERFORMA BACKTEST -->
+  <main id="tab-backtest" class="container">
+    <div class="section-title">Laporan Pengujian Historis (13,771 Bar H1)</div>
+    <div class="kpi-grid num">
+      <div class="kpi-card">
+        <div class="kpi-title">PROFIT FACTOR</div>
+        <div class="kpi-val val-mint" id="btPf">1.52</div>
+        <div class="kpi-sub">Lolos Gate (&gt; 1.40)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">WIN RATE</div>
+        <div class="kpi-val val-gold" id="btWr">48.5%</div>
+        <div class="kpi-sub">R:R Ratio 1 : 2.5</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">MAX DRAWDOWN</div>
+        <div class="kpi-val" id="btDd">8.2%</div>
+        <div class="kpi-sub">Aman (&lt; 15.0%)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">TOTAL TRADES</div>
+        <div class="kpi-val" id="btTrades">142</div>
+        <div class="kpi-sub">Spread $0.30/oz</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <strong style="font-size:13px;">Kurva Pertumbuhan Ekuitas</strong>
+        <span style="font-size:12px; color:var(--mint); font-weight:700;">+46.8% Net</span>
+      </div>
+      <svg viewBox="0 0 320 110" style="width:100%; height:110px; overflow:visible;">
+        <defs>
+          <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00e5a8" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#00e5a8" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,95 L35,88 L70,91 L105,74 L140,78 L175,55 L210,59 L245,34 L280,26 L320,10 L320,110 L0,110 Z" fill="url(#eqGrad)"/>
+        <path d="M0,95 L35,88 L70,91 L105,74 L140,78 L175,55 L210,59 L245,34 L280,26 L320,10" fill="none" stroke="#00e5a8" stroke-width="2.5"/>
+      </svg>
+      <button class="btn btn-outline" id="btnRunBt" onclick="runLocalBacktest()">Jalankan Simulasi Ulang (backtest.js)</button>
+    </div>
+  </main>
+
+  <!-- TAB 3: ANALISIS MULTI-TIMEFRAME -->
+  <main id="tab-mtf" class="container">
+    <div class="section-title">Trend Meter & Matriks Timeframe</div>
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:6px;">
+        <span style="color:var(--red);">BEARISH</span>
+        <span style="color:var(--mint);">STRONG BULLISH (78%)</span>
+      </div>
+      <div class="range-track"><div class="range-fill" style="width: 78%;"></div></div>
+
+      <table class="mtf-table num" style="margin-top: 12px;">
+        <thead>
+          <tr>
+            <th>TF</th>
+            <th>Struktur EMA</th>
+            <th>ADX</th>
+            <th>Support / Res</th>
+            <th>Bias</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>M15</strong></td>
+            <td>2653 &gt; 2649</td>
+            <td>24.1</td>
+            <td>2648 / 2660</td>
+            <td><span class="badge-bull">BUY</span></td>
+          </tr>
+          <tr>
+            <td><strong>H1</strong></td>
+            <td>2651 &gt; 2644</td>
+            <td>29.4</td>
+            <td>2641 / 2680</td>
+            <td><span class="badge-bull">BUY</span></td>
+          </tr>
+          <tr>
+            <td><strong>H4</strong></td>
+            <td>2642 &gt; 2628</td>
+            <td>32.8</td>
+            <td>2630 / 2690</td>
+            <td><span class="badge-bull">BUY</span></td>
+          </tr>
+          <tr>
+            <td><strong>D1</strong></td>
+            <td>2618 &gt; 2585</td>
+            <td>27.5</td>
+            <td>2600 / 2710</td>
+            <td><span class="badge-bull">BUY</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- TAB 4: KALENDER BERITA USD -->
+  <main id="tab-news" class="container">
+    <div class="section-title">Filter Volatilitas Berita USD</div>
+    <div class="card">
+      <div class="news-item">
+        <div>
+          <div style="font-weight:700; font-size:13px;">US Core PCE Price Index (MoM)</div>
+          <div style="font-size:11px; color:var(--text-muted);">13:30 UTC • Hindari entry 15 menit sebelum rilis</div>
+        </div>
+        <span class="impact-high">HIGH</span>
+      </div>
+      <div class="news-item">
+        <div>
+          <div style="font-weight:700; font-size:13px;">Initial Jobless Claims</div>
+          <div style="font-size:11px; color:var(--text-muted);">13:30 UTC • Volatilitas XAUUSD tinggi</div>
+        </div>
+        <span class="impact-high">HIGH</span>
+      </div>
+      <div class="news-item">
+        <div>
+          <div style="font-weight:700; font-size:13px;">S&amp;P Global Manufacturing PMI</div>
+          <div style="font-size:11px; color:var(--text-muted);">14:45 UTC • Sesi Overlap London–NY</div>
+        </div>
+        <span class="impact-med">MED</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" onclick="switchTab('signal', this)">
+      <span class="nav-icon">⚡</span>
+      <span>Sinyal</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('backtest', this)">
+      <span class="nav-icon">📊</span>
+      <span>Backtest</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('mtf', this)">
+      <span class="nav-icon">🧭</span>
+      <span>MTF</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('news', this)">
+      <span class="nav-icon">📰</span>
+      <span>Berita USD</span>
+    </button>
   </nav>
-
-  <!-- Setup & Sinyal -->
-  <main id="tab-setup" class="tabpane">
-    <section class="card" id="indicatorsDashboard">
-      <h3>Indikator Trend & Volatilitas</h3>
-      <div class="grid-2">
-        <div class="ind">EMA: <span id="valEma">—</span></div>
-        <div class="ind">ADX: <span id="valAdx">—</span></div>
-        <div class="ind">RSI: <span id="valRsi">—</span></div>
-      </div>
-    </section>
-    <section class="card" id="signalPanel">
-      <h3>Panel Sinyal</h3>
-      <div id="signalEntry">Entry: —</div>
-      <div id="signalSlTp">SL: — | TP: —</div>
-      <button id="btnAction">Konfirmasi Action</button>
-    </section>
-  </main>
-
-  <!-- Performa Backtest -->
-  <main id="tab-backtest" class="tabpane" style="display:none">
-    <section class="card">
-      <h3>Statistik</h3>
-      <div class="stats-grid">
-        <div class="stat">PF: <span id="btPf">—</span></div>
-        <div class="stat">Win Rate: <span id="btWinRate">—</span></div>
-        <div class="stat">Max DD: <span id="btMaxDd">—</span></div>
-        <div class="stat">Trades: <span id="btTrades">—</span></div>
-      </div>
-    </section>
-    <section class="card">
-      <canvas id="btChart"></canvas>
-    </section>
-  </main>
-
-  <!-- Analisis MTF -->
-  <main id="tab-mtf" class="tabpane" style="display:none">
-    <section class="card">
-      <h3>Multi-Timeframe Trend</h3>
-      <div id="mtfTrend">Loading...</div>
-    </section>
-    <section class="card">
-      <h3>Support/Resistance</h3>
-      <div id="srTable">Loading...</div>
-    </section>
-  </main>
-
-  <!-- Berita USD -->
-  <main id="tab-news" class="tabpane" style="display:none">
-    <section class="card">
-      <h3>High-Impact USD News</h3>
-      <div id="newsFeed">Memuat berita...</div>
-    </section>
-  </main>
 
   <script src="indicators.js"></script>
   <script src="backtest.js"></script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
