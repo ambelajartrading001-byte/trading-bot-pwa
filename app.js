@@ -393,3 +393,133 @@ function resetAiHistory() {
 }
 
 window.addEventListener('DOMContentLoaded', renderAiPerformance);
+
+// === CUSTOM PERIOD FILTER FOR AI TRADE HISTORY ===
+let currentAiPeriod = 'all';
+
+function setAiPeriod(period, btn) {
+  currentAiPeriod = period;
+  document.querySelectorAll('#aiFilterBar .filter-pill').forEach(el => el.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  const customBox = document.getElementById('customDateBox');
+  if (customBox) {
+    if (period === 'custom') {
+      customBox.classList.add('show');
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const startInput = document.getElementById('filterStartDate');
+      const endInput = document.getElementById('filterEndDate');
+      if (startInput && !startInput.value) startInput.value = todayStr;
+      if (endInput && !endInput.value) endInput.value = todayStr;
+    } else {
+      customBox.classList.remove('show');
+    }
+  }
+  renderAiPerformance();
+}
+
+function isTradeInPeriod(trade) {
+  if (currentAiPeriod === 'all') return true;
+  // Gunakan timestamp ISO jika ada; fallback ke waktu hari ini untuk data lama
+  const ts = trade.timestamp ? new Date(trade.timestamp) : new Date();
+  const tradeDay = new Date(ts.getFullYear(), ts.getMonth(), ts.getDate());
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msPerDay = 86400000;
+
+  if (currentAiPeriod === 'today') {
+    return tradeDay.getTime() === today.getTime();
+  }
+  if (currentAiPeriod === 'yesterday') {
+    return tradeDay.getTime() === today.getTime() - msPerDay;
+  }
+  if (currentAiPeriod === '7d') {
+    return tradeDay.getTime() >= today.getTime() - (6 * msPerDay);
+  }
+  if (currentAiPeriod === '30d') {
+    return tradeDay.getTime() >= today.getTime() - (29 * msPerDay);
+  }
+  if (currentAiPeriod === 'custom') {
+    const startVal = document.getElementById('filterStartDate')?.value;
+    const endVal = document.getElementById('filterEndDate')?.value;
+    if (startVal) {
+      const [sy, sm, sd] = startVal.split('-').map(Number);
+      if (tradeDay < new Date(sy, sm - 1, sd)) return false;
+    }
+    if (endVal) {
+      const [ey, em, ed] = endVal.split('-').map(Number);
+      if (tradeDay > new Date(ey, em - 1, ed)) return false;
+    }
+    return true;
+  }
+  return true;
+}
+
+// Override renderAiPerformance agar menghitung KPI & tabel berdasarkan filter periode aktif
+renderAiPerformance = function() {
+  const body = document.getElementById('aiTradesBody');
+  const pnlEl = document.getElementById('aiNetPnl');
+  const roiEl = document.getElementById('aiRoiSub');
+  const wrEl = document.getElementById('aiLiveWr');
+  if (!body) return;
+
+  const filtered = aiTrades.filter(isTradeInPeriod);
+
+  if (filtered.length === 0) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:14px;">Tidak ada transaksi pada periode ini</td></tr>';
+    pnlEl.textContent = '+$0.00';
+    pnlEl.className = 'kpi-val val-mint';
+    roiEl.textContent = '0.00% dari Modal';
+    wrEl.textContent = '0.0% (0)';
+    return;
+  }
+
+  let totalPnl = 0;
+  let wins = 0;
+  body.innerHTML = '';
+
+  filtered.slice().reverse().forEach(t => {
+    totalPnl += t.pnl;
+    if (t.pnl > 0) wins++;
+    const tr = document.createElement('tr');
+    const pnlColor = t.pnl >= 0 ? 'var(--mint)' : 'var(--red)';
+    const sign = t.pnl >= 0 ? '+' : '';
+    const dateLabel = t.dateStr ? `${t.dateStr} ${t.time}` : t.time;
+    tr.innerHTML = `
+      <td>${dateLabel}</td>
+      <td><span class="${t.side === 'BUY' ? 'badge-bull' : 'badge-bear'}">${t.side} ${t.lot}</span></td>
+      <td>${t.entry} → ${t.exit}</td>
+      <td style="font-size:11px; color:var(--text-muted);">${t.reason}</td>
+      <td style="font-weight:700; color:${pnlColor};">${sign}$${t.pnl.toFixed(2)}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const balance = parseFloat(document.getElementById('accBalance')?.value) || 1000;
+  const roi = (totalPnl / balance) * 100;
+  const wr = (wins / filtered.length) * 100;
+
+  pnlEl.textContent = `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`;
+  pnlEl.className = `kpi-val ${totalPnl >= 0 ? 'val-mint' : 'val-red'}`;
+  roiEl.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}% dari Modal ($${balance})`;
+  wrEl.textContent = `${wr.toFixed(1)}% (${filtered.length})`;
+};
+
+// Pastikan setiap trade baru menyimpan timestamp & tanggal lengkap untuk filter periode
+const _origSimPeriod = simulateAiSignal;
+simulateAiSignal = async function() {
+  await _origSimPeriod();
+  if (aiTrades.length > 0) {
+    const last = aiTrades[aiTrades.length - 1];
+    if (!last.timestamp) {
+      const now = new Date();
+      last.timestamp = now.toISOString();
+      last.dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      localStorage.setItem('aureus_ai_trades', JSON.stringify(aiTrades));
+      renderAiPerformance();
+    }
+  }
+};
+
+renderAiPerformance();
