@@ -7,29 +7,127 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="TradeBot">
-  <meta name="theme-color" content="#000000">
-  <meta name="description" content="Free PWA trading bot for crypto (paper trading / testnet). No API key required for market data.">
-  <link rel="manifest" href="/manifest.json">
-  <title>Trading Bot PWA</title>
-  <style>/* inline fallback */</style>
-  <script src="/script.js"></script>
+  <meta name="theme-color" content="#0b0e11">
+  <meta name="description" content="Bot trading PWA gratis untuk kripto: EMA/SMA/RSI/MACD/Bollinger + auto-trading + notifikasi. Berbasis Binance.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="indicators.js" defer></script>
+  <script src="app.js" defer></script>
+  <title>TradeBot — Trading PWA</title>
 </head>
 <body>
   <header class="header">
-    <h1>&#128176; Trading Bot PWA</h1>
-    <p>Bot trading kripto gratis &amp; gratis &mdash; pakai di Android</p>
+    <div class="header-top">
+      <h1>&#128176; TradeBot</h1>
+      <span class="mode-pill" id="modePill">&#9679; Trading Live</span>
+    </div>
+    <p>Trading Bot PWA — gratis, untuk Android</p>
   </header>
+
   <main id="app">
-    <div class="price-box">
-      <span class="sym" id="currentSymbol">XAUUSD</span>
-      Live Price: <span id="price">—</span>
+    <!-- Controls -->
+    <div class="controls">
+      <select id="symbolSel" class="ctrl">
+        <option value="BTCUSD">Bitcoin (BTCUSD)</option>
+        <option value="XAUUSD">Emas (XAUUSD)</option>
+        <option value="ETHUSD">Ethereum (ETHUSD)</option>
+      </select>
+      <select id="intervalSel" class="ctrl">
+        <option value="1m">1 menit</option>
+        <option value="5m">5 menit</option>
+        <option value="15m">15 menit</option>
+        <option value="30m">30 menit</option>
+        <option value="1h">1 jam</option>
+        <option value="4h">4 jam</option>
+        <option value="1d">1 hari</option>
+      </select>
+      <button class="ctrl-icon" id="refreshBtn" title="Refresh">&#10227;</button>
     </div>
-    <div class="signals-box" id="signals">
-      <p class="pending">Sedang memuat data...</p>
-    </div>
-    <button class="btn btn-primary" id="buyBtn" onclick="executeTrade('BUY')">BUY</button>
-    <button class="btn btn-secondary" id="sellBtn" onclick="executeTrade('SELL')">SELL</button>
-    <div class="status" id="status"></div>
+
+    <!-- Price card -->
+    <section class="card price-card">
+      <span class="sym" id="displaySymbol">BTCUSD</span>
+      <span class="price" id="livePrice">—</span>
+      <span class="status-msg" id="statusMsg">Memuat...</span>
+    </section>
+
+    <!-- Signal -->
+    <section class="card signal-card">
+      <div class="signal-row">
+        <span class="badge hold" id="signalBadge">HOLD</span>
+        <span id="signalText">Menghitung indikator...</span>
+      </div>
+      <div class="status-msg" id="lastOrder"></div>
+    </section>
+
+    <!-- Chart -->
+    <section class="card chart-card">
+      <canvas id="priceChart"></canvas>
+    </section>
+
+    <!-- Indicators -->
+    <section class="grid-2">
+      <div class="card ind"><span class="ind-label">SMA 20</span><span id="sma20">—</span></div>
+      <div class="card ind"><span class="ind-label">SMA 50</span><span id="sma50">—</span></div>
+      <div class="card ind"><span class="ind-label">RSI (14)</span><span id="rsi">—</span></div>
+      <div class="card ind"><span class="ind-label">MACD / Signal</span><span id="macd">—</span></div>
+      <div class="card ind"><span class="ind-label">Bollinger High</span><span id="bbU">—</span></div>
+      <div class="card ind"><span class="ind-label">Bollinger Low</span><span id="bbL">—</span></div>
+    </section>
+
+    <!-- Actions -->
+    <section class="actions">
+      <button class="btn btn-btn" id="autoBtn">&#9654; Auto-trade</button>
+      <button class="btn btn-primary" id="buyBtn">&#9650; BUY</button>
+      <button class="btn btn-secondary" id="sellBtn">&#9660; SELL</button>
+      <button class="btn btn-ghost" id="notifyBtn">&#128276; Notifikasi</button>
+      <button class="btn btn-ghost" id="settingsBtn">&#9881; Pengaturan</button>
+    </section>
   </main>
+
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>&#9881; Pengaturan Trading</h2>
+        <button class="close" id="settingsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label>Mode
+          <select id="setMode">
+            <option value="testnet">Testnet (paper, gratis)</option>
+            <option value="real">Real (hati-hati!)</option>
+          </select>
+        </label>
+        <label>API Key
+          <input type="text" id="setKey" placeholder="Binance API Key" autocomplete="off">
+        </label>
+        <label>API Secret
+          <input type="password" id="setSecret" placeholder="Binance API Secret" autocomplete="off">
+        </label>
+        <label>Interval Auto-trade
+          <select id="setInterval">
+            <option value="1m">1 menit</option>
+            <option value="5m">5 menit</option>
+            <option value="15m">15 menit</option>
+            <option value="30m">30 menit</option>
+            <option value="1h">1 jam</option>
+          </select>
+        </label>
+        <p class="hint">
+          <b>Testnet:</b> buat key gratis di <code>testnet.binance.vision</code> (uang virtual).
+          <br><b>Real:</b> key dari Binance asli. Mode real dari browser dibatasi CORS — untuk akun real,
+          sebaiknya gunakan server/proxy (detail di README). API key disimpan SECARA LOKAL di browser kamu (localStorage).
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary" id="settingsSave">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">TradeBot PWA — untuk belajar. Bukan saran investasi. &#9878;</footer>
 </body>
 </html>
