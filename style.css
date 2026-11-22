@@ -1,104 +1,73 @@
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+/* Tema Terminal Dark-Mode Mobile */
 :root {
-  --bg: #0b0e11; --card: #1b2129; --border: #2a3340;
-  --text: #eaecef; --muted: #848e9c;
-  --blue: #3b82f6; --gold: #f0b90b; --green: #22c55e; --red: #e5484d;
+    --bg-color: #0B0E14;
+    --accent-gold: #F5B041;
+    --accent-mint: #00E5A8;
+    --text-main: #E0E0E0;
+    --card-bg: #151921;
+    --border: #2A313C;
 }
-html, body { height: 100%; }
+
 body {
-  background: var(--bg); color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  display: flex; flex-direction: column; min-height: 100vh;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    font-family: 'Roboto Mono', monospace;
+    margin: 0;
+    padding-bottom: 70px;
 }
-/* Header */
-.header { padding: 1.1rem 1.25rem; text-align: center; border-bottom: 1px solid var(--border); background: #12161c; }
-.header-top { display: flex; justify-content: center; align-items: center; gap: 0.75rem; }
-.header h1 { font-size: 1.4rem; }
-.header p { font-size: 0.8rem; color: var(--muted); }
-.mode-pill { font-size: 0.65rem; background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.4); padding: 0.2rem 0.5rem; border-radius: 20px; }
-/* Main */
-#app { flex: 1; padding: 1rem; max-width: 700px; width: 100%; margin: 0 auto; padding-bottom: 80px; }
-.controls { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-.ctrl, .ctrl-icon {
-  background: var(--card); border: 1px solid var(--border); color: var(--text);
-  padding: 0.65rem 0.75rem; border-radius: 10px; font-size: 0.95rem;
+
+/* Kartu Metrik */
+.metric-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 0.5rem;
 }
-.ctrl { flex: 1; }
-.ctrl-icon { flex: 0 0 auto; font-size: 1.1rem; cursor: pointer; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem; margin-bottom: 0.85rem; }
-/* Price */
-.price-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.sym { font-size: 0.9rem; color: var(--muted); }
-.price { font-size: 2.4rem; font-weight: 800; margin: 0.3rem 0; font-variant-numeric: tabular-nums; }
-.price.up { color: var(--green); }
-.price.down { color: var(--red); }
-.status-msg { font-size: 0.75rem; color: var(--muted); min-height: 1rem; }
-/* Signal */
-.signal-card { display: flex; flex-direction: column; gap: 0.4rem; }
-.signal-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-#signalText { font-size: 0.9rem; color: var(--muted); }
-.badge { padding: 0.35rem 0.8rem; border-radius: 20px; font-weight: 800; font-size: 1.1rem; }
-.badge.buy { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid var(--green); }
-.badge.sell { background: rgba(229,72,77,0.15); color: var(--red); border: 1px solid var(--red); }
-.badge.hold { background: rgba(240,185,11,0.15); color: var(--gold); border: 1px solid var(--gold); }
-/* Chart */
-.chart-card { padding: 0.5rem; }
-#priceChart { width: 100%; height: 200px; display: block; }
-/* Indicator grid */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
-.ind { display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1rem; margin: 0; }
-.ind-label { font-size: 0.8rem; color: var(--muted); }
-.ind span:last-child { font-weight: 700; font-size: 0.95rem; }
-/* Actions */
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.5rem; }
-.btn {
-  padding: 0.85rem; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700;
-  cursor: pointer; color: #fff; text-align: center;
+
+.metric-value { color: var(--accent-gold); font-size: 1.2rem; font-weight: bold; }
+
+/* Tab Bar Bawah */
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background: var(--card-bg);
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
 }
-.btn:active { transform: scale(0.98); }
-.btn-primary { background: var(--green); }
-.btn-secondary { background: var(--red); }
-.btn-btn { background: var(--gold); color: #0b0e11; }
-.btn-btn.active { background: var(--red); }
-.btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--text); }
-/* Modal */
-.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
-.modal-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 420px; }
-.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
-.modal-head h2 { font-size: 1.1rem; }
-.close { background: none; border: none; color: var(--text); font-size: 1.6rem; cursor: pointer; }
-.modal-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.9rem; }
-.modal-body label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
-.modal-body input, .modal-body select {
-  background: #12161c; border: 1px solid var(--border); color: var(--text);
-  padding: 0.6rem; border-radius: 8px; font-size: 0.95rem;
+
+/* Progress Bar Range */
+.progress-container {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
 }
-.hint { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
-.hint code { color: var(--gold); }
-.modal-foot { padding: 1rem 1.25rem; border-top: 1px solid var(--border); }
-.btn-full { width: 100%; }
-/* Footer */
-.footer { text-align: center; padding: 1rem; font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border); }
 
-/* ===================== TABS ===================== */
-.tabbar { display: flex; max-width: 700px; width: 100%; margin: 0 auto; padding: 0.75rem 1rem 0; gap: 0.4rem; }
-.tabbtn { flex: 1; background: var(--card); border: 1px solid var(--border); color: var(--muted); padding: 0.6rem; border-radius: 10px 10px 0 0; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-.tabbtn.active { background: #20283a; color: var(--gold); border-color: var(--gold); }
-.tabpane { flex: 1; max-width: 700px; width: 100%; margin: 0 auto; padding: 0.75rem 1rem 80px; }
+.progress-bar {
+    height: 100%;
+    background: var(--accent-mint);
+    width: 0%;
+}
 
-/* ===================== BACKTEST ===================== */
-.bt-controls { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
-.bt-controls label { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
-.bt-controls input, .bt-controls select { background: #12161c; border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 8px; font-size: 0.95rem; }
-.bt-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.5rem; }
-.bt-m { display: flex; justify-content: space-between; background: #12161c; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.85rem; }
-.bt-h { margin: 0.8rem 0 0.4rem; font-size: 0.95rem; }
-.bt-trades { display: flex; flex-direction: column; gap: 0.3rem; }
+/* Tabel MTF */
+.mtf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
 
-/* ===================== HISTORY ===================== */
-.hrow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.45rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-.hrow:last-child { border-bottom: none; }
-.muted { color: var(--muted); }
-.small { font-size: 0.7rem; }
+.mtf-table th, .mtf-table td {
+    border: 1px solid var(--border);
+    padding: 8px;
+    text-align: center;
+    font-size: 0.8rem;
+}
 
-#btChart { width: 100%; height: 160px; display: block; }
+.mtf-table th { color: var(--accent-gold); }
+.mtf-table td.up { color: var(--accent-mint); }
+.mtf-table td.down { color: #ff5252; }

@@ -5,163 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="TradeBot">
-  <meta name="theme-color" content="#0b0e11">
-  <meta name="description" content="Bot trading PWA gratis untuk kripto: RSI/MACD/Bollinger/SMA + backtest + auto-trading + notifikasi. Berbasis Binance.">
+  <meta name="apple-mobile-web-app-title" content="XAU Quant">
+  <meta name="theme-color" content="#0B0E14">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
-  <title>TradeBot — Trading PWA</title>
+  <title>XAU Quant Terminal</title>
 </head>
 <body>
   <header class="header">
-    <div class="header-top">
-      <h1>&#128176; TradeBot</h1>
-      <span class="mode-pill" id="modePill">&#9679; Trading Live</span>
-    </div>
-    <p>Trading Bot PWA — gratis, untuk Android</p>
+    <h1>XAU Quant Terminal</h1>
+    <span id="sessionStatus">Sesi: Memuat...</span>
   </header>
 
-  <!-- Tab bar -->
   <nav class="tabbar">
-    <button class="tabbtn active" id="tabBtn-dashboard">&#9632; Dashboard</button>
-    <button class="tabbtn" id="tabBtn-backtest">&#128202; Backtest</button>
-    <button class="tabbtn" id="tabBtn-history">&#128221; Riwayat</button>
+    <button class="tabbtn active" data-tab="setup">Setup & Sinyal</button>
+    <button class="tabbtn" data-tab="backtest">Backtest</button>
+    <button class="tabbtn" data-tab="mtf">Analisis MTF</button>
+    <button class="tabbtn" data-tab="news">Berita USD</button>
   </nav>
 
-  <!-- ===================== DASHBOARD ===================== -->
-  <main id="tab-dashboard" class="tabpane" style="display:block">
-    <div class="controls">
-      <select id="symbolSel" class="ctrl">
-        <option value="BTCUSD">Bitcoin (BTCUSD)</option>
-        <option value="XAUUSD">Emas (XAUUSD)</option>
-        <option value="ETHUSD">Ethereum (ETHUSD)</option>
-      </select>
-      <select id="intervalSel" class="ctrl">
-        <option value="1m">1 menit</option>
-        <option value="5m">5 menit</option>
-        <option value="15m">15 menit</option>
-        <option value="30m">30 menit</option>
-        <option value="1h">1 jam</option>
-        <option value="4h">4 jam</option>
-        <option value="1d">1 hari</option>
-      </select>
-      <button class="ctrl-icon" id="refreshBtn" title="Refresh">&#10227;</button>
-    </div>
-
-    <section class="card price-card">
-      <span class="sym" id="displaySymbol">BTCUSD</span>
-      <span class="price" id="livePrice">—</span>
-      <span class="status-msg" id="statusMsg">Memuat...</span>
-    </section>
-
-    <section class="card signal-card">
-      <div class="signal-row">
-        <span class="badge hold" id="signalBadge">HOLD</span>
-        <span id="signalText">Menghitung indikator...</span>
+  <!-- Setup & Sinyal -->
+  <main id="tab-setup" class="tabpane">
+    <section class="card" id="indicatorsDashboard">
+      <h3>Indikator Trend & Volatilitas</h3>
+      <div class="grid-2">
+        <div class="ind">EMA: <span id="valEma">—</span></div>
+        <div class="ind">ADX: <span id="valAdx">—</span></div>
+        <div class="ind">RSI: <span id="valRsi">—</span></div>
       </div>
-      <div class="status-msg" id="lastOrder"></div>
     </section>
-
-    <section class="card chart-card">
-      <canvas id="priceChart"></canvas>
-    </section>
-
-    <section class="grid-2">
-      <div class="card ind"><span class="ind-label">SMA 20</span><span id="sma20">—</span></div>
-      <div class="card ind"><span class="ind-label">SMA 50</span><span id="sma50">—</span></div>
-      <div class="card ind"><span class="ind-label">RSI (14)</span><span id="rsi">—</span></div>
-      <div class="card ind"><span class="ind-label">MACD / Signal</span><span id="macd">—</span></div>
-      <div class="card ind"><span class="ind-label">Bollinger High</span><span id="bbU">—</span></div>
-      <div class="card ind"><span class="ind-label">Bollinger Low</span><span id="bbL">—</span></div>
-    </section>
-
-    <section class="actions">
-      <button class="btn btn-btn" id="autoBtn">&#9654; Auto-trade</button>
-      <button class="btn btn-primary" id="buyBtn">&#9650; BUY</button>
-      <button class="btn btn-secondary" id="sellBtn">&#9660; SELL</button>
-      <button class="btn btn-ghost" id="notifyBtn">&#128276; Notifikasi</button>
-      <button class="btn btn-ghost" id="settingsBtn">&#9881; Pengaturan</button>
+    <section class="card" id="signalPanel">
+      <h3>Panel Sinyal</h3>
+      <div id="signalEntry">Entry: —</div>
+      <div id="signalSlTp">SL: — | TP: —</div>
+      <button id="btnAction">Konfirmasi Action</button>
     </section>
   </main>
 
-  <!-- ===================== BACKTEST ===================== -->
+  <!-- Performa Backtest -->
   <main id="tab-backtest" class="tabpane" style="display:none">
     <section class="card">
-      <div class="bt-controls">
-        <label>Bar <input type="number" id="btLimit" value="300" min="100" max="1000"></label>
-        <label>Mode
-          <select id="btMode">
-            <option value="both">Long &amp; Short</option>
-            <option value="long">Long saja</option>
-          </select>
-        </label>
+      <h3>Statistik</h3>
+      <div class="stats-grid">
+        <div class="stat">PF: <span id="btPf">—</span></div>
+        <div class="stat">Win Rate: <span id="btWinRate">—</span></div>
+        <div class="stat">Max DD: <span id="btMaxDd">—</span></div>
+        <div class="stat">Trades: <span id="btTrades">—</span></div>
       </div>
-      <button class="btn btn-btn" id="btRunBtn" style="width:100%">&#9654; Jalankan Backtest</button>
-      <p class="muted small" style="margin-top:.5rem">Menggunakan data historis &amp; periode aktif. Dua skenario tersedia.</p>
     </section>
     <section class="card">
       <canvas id="btChart"></canvas>
     </section>
-    <div id="btResult"></div>
   </main>
 
-  <!-- ===================== HISTORY ===================== -->
-  <main id="tab-history" class="tabpane" style="display:none">
-    <section class="card" id="statsTotal">Memuat statistik...</section>
-    <section class="card" id="historyList"><p class="muted">Belum ada trade.</p></section>
+  <!-- Analisis MTF -->
+  <main id="tab-mtf" class="tabpane" style="display:none">
+    <section class="card">
+      <h3>Multi-Timeframe Trend</h3>
+      <div id="mtfTrend">Loading...</div>
+    </section>
+    <section class="card">
+      <h3>Support/Resistance</h3>
+      <div id="srTable">Loading...</div>
+    </section>
   </main>
 
-  <!-- Settings Modal -->
-  <div class="modal" id="settingsModal">
-    <div class="modal-box">
-      <div class="modal-head">
-        <h2>&#9881; Pengaturan Trading</h2>
-        <button class="close" id="settingsClose">&times;</button>
-      </div>
-      <div class="modal-body">
-        <label>Mode
-          <select id="setMode">
-            <option value="testnet">Testnet (paper, gratis)</option>
-            <option value="real">Real (hati-hati!)</option>
-          </select>
-        </label>
-        <label>API Key
-          <input type="text" id="setKey" placeholder="Binance API Key" autocomplete="off">
-        </label>
-        <label>API Secret (testnet)
-          <input type="password" id="setSecret" placeholder="Binance API Secret" autocomplete="off">
-        </label>
-        <label>Proxy URL Real
-          <input type="text" id="setProxy" placeholder="https://trading-bot-proxy.xx.workers.dev" autocomplete="off">
-        </label>
-        <label>Interval Auto-trade
-          <select id="setInterval">
-            <option value="1m">1 menit</option>
-            <option value="5m">5 menit</option>
-            <option value="15m">15 menit</option>
-            <option value="30m">30 menit</option>
-            <option value="1h">1 jam</option>
-          </select>
-        </label>
-        <p class="hint">
-          <b>Testnet:</b> key gratis di <code>testnet.binance.vision</code> (uang virtual).
-          <br><b>Real:</b> butuh <b>Proxy URL</b> (Cloudflare Worker gratis, lihat folder <code>worker/</code>).
-          Secret real disimpan di worker (<code>BINANCE_SECRET</code>), bukan di browser. Key &amp; riwayat
-          tersimpan <b>lokal</b> di device kamu.
-        </p>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-primary btn-full" id="settingsSave">Simpan</button>
-      </div>
-    </div>
-  </div>
+  <!-- Berita USD -->
+  <main id="tab-news" class="tabpane" style="display:none">
+    <section class="card">
+      <h3>High-Impact USD News</h3>
+      <div id="newsFeed">Memuat berita...</div>
+    </section>
+  </main>
 
-  <footer class="footer">TradeBot PWA — untuk belajar. Bukan saran investasi. &#9878;</footer>
-  <script src="indicators.js" defer></script>
-  <script src="backtest.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="indicators.js"></script>
+  <script src="backtest.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
