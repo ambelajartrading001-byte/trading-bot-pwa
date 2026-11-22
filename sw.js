@@ -1,6 +1,6 @@
 // Service Worker for PWA Trading Bot
 // Enables offline caching + push notifications
-const CACHE_NAME = 'trading-bot-v1';
+const CACHE_NAME = 'xau-quant-v1795366320';
 const APP_SHELL = [
   './',
   './index.html',
