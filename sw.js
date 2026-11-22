@@ -1,5 +1,5 @@
-const CACHE_NAME = 'aureus-quant-v3';
-const ASSETS = ['./', './index.html', './style.css?v=3', './app.js?v=3', './indicators.js', './backtest.js', './manifest.json'];
+const CACHE_NAME = 'aureus-quant-v4';
+const ASSETS = ['./', './index.html', './style.css?v=4', './app.js?v=4', './indicators.js', './backtest.js', './manifest.json'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();

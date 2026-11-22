@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#090c12" />
-  <title>AUREUS QUANT • XAUUSD Terminal</title>
+  <title>AUREUS QUANT • XAUUSD AI Terminal</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
 
@@ -118,7 +118,90 @@
     </div>
   </main>
 
-  <!-- TAB 2: PERFORMA BACKTEST -->
+  <!-- TAB 2: AUTO AI TRADING -->
+  <main id="tab-autobot" class="container">
+    <div class="section-title">AI Autonomous Execution Engine</div>
+    <div class="card">
+      <div class="ai-status-box">
+        <div>
+          <div style="font-size:11px; color:var(--text-muted);">STATUS ENGINE AI</div>
+          <div id="aiEngineState" style="font-size:15px; font-weight:800; color:var(--gold);">STANDBY • SIAP EKSEKUSI</div>
+        </div>
+        <span id="aiStrategyTag" class="badge-bull">STRATEGI V1 (PF 1.52)</span>
+      </div>
+
+      <div class="calc-row">
+        <div class="input-group">
+          <label>Strategi Teruji</label>
+          <select id="aiStratSelect">
+            <option value="v1">XAU v1 • London-NY Pullback (PF 1.52)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Mode Eksekusi</label>
+          <select id="aiExecMode">
+            <option value="paper">Paper / Simulasi Live</option>
+            <option value="webhook">Webhook Bridge (MT4/MT5/Bot)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="calc-row">
+        <div class="input-group">
+          <label>Lot Otomatis</label>
+          <input type="number" id="aiLotSize" value="0.02" step="0.01" />
+        </div>
+        <div class="input-group">
+          <label>Max Daily Loss (%)</label>
+          <input type="number" id="aiMaxDd" value="3.0" step="0.5" />
+        </div>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 12px;">
+        <label>Webhook / Telegram Bridge Endpoint (Opsional)</label>
+        <input type="text" id="aiWebhookUrl" placeholder="https://api.telegram.org/bot.../sendMessage atau URL Bridge" />
+      </div>
+
+      <button id="btnToggleAi" class="btn btn-mint" onclick="toggleAutoAi()">▶ Aktifkan Auto Trading AI</button>
+    </div>
+
+    <div class="section-title">Guardrails & Filter Keamanan AI</div>
+    <div class="card">
+      <div class="toggle-row">
+        <div>
+          <div style="font-size:13px; font-weight:700;">Chandelier ATR Trailing Stop</div>
+          <div style="font-size:11px; color:var(--text-muted);">Geser SL otomatis ke Breakeven & trail profit</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="chkChandelier" checked /><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div style="font-size:13px; font-weight:700;">Filter Sesi London–NY (07–18 UTC)</div>
+          <div style="font-size:11px; color:var(--text-muted);">Hanya buka posisi saat likuiditas emas optimal</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="chkSession" checked /><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div style="font-size:13px; font-weight:700;">Jeda Otomatis Berita USD High-Impact</div>
+          <div style="font-size:11px; color:var(--text-muted);">Tahan entry 15 menit sebelum rilis PCE / PMI / NFP</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="chkNews" checked /><span class="slider"></span></label>
+      </div>
+    </div>
+
+    <div class="section-title">Live AI Decision & Execution Log</div>
+    <div class="card">
+      <div id="aiLogBox" class="log-terminal">
+        <div class="log-line"><span class="log-time">[INIT]</span>Model Strategi v1 dimuat: EMA(20/50/200) + ADX(14) + 3-Bar Pullback.</div>
+        <div class="log-line"><span class="log-time">[GATE]</span><span class="log-ok">Backtest terverifikasi: PF 1.52 | Win Rate 48.5% | Max DD 8.2%.</span></div>
+        <div class="log-line"><span class="log-time">[WAIT]</span>Menunggu aktivasi tombol Auto Trading AI...</div>
+      </div>
+      <button class="btn btn-outline" onclick="simulateAiSignal()">Simulasikan Trigger Sinyal AI Sekarang</button>
+    </div>
+  </main>
+
+  <!-- TAB 3: PERFORMA BACKTEST -->
   <main id="tab-backtest" class="container">
     <div class="section-title">Laporan Pengujian Historis (13,771 Bar H1)</div>
     <div class="kpi-grid num">
@@ -163,7 +246,7 @@
     </div>
   </main>
 
-  <!-- TAB 3: ANALISIS MULTI-TIMEFRAME -->
+  <!-- TAB 4: ANALISIS MULTI-TIMEFRAME -->
   <main id="tab-mtf" class="container">
     <div class="section-title">Trend Meter & Matriks Timeframe</div>
     <div class="card">
@@ -217,7 +300,7 @@
     </div>
   </main>
 
-  <!-- TAB 4: KALENDER BERITA USD -->
+  <!-- TAB 5: KALENDER BERITA USD -->
   <main id="tab-news" class="container">
     <div class="section-title">Filter Volatilitas Berita USD</div>
     <div class="card">
@@ -245,11 +328,15 @@
     </div>
   </main>
 
-  <!-- BOTTOM NAVIGATION -->
+  <!-- BOTTOM NAVIGATION (5 TABS) -->
   <nav class="bottom-nav">
     <button class="nav-btn active" onclick="switchTab('signal', this)">
       <span class="nav-icon">⚡</span>
       <span>Sinyal</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('autobot', this)">
+      <span class="nav-icon">🤖</span>
+      <span>Auto AI</span>
     </button>
     <button class="nav-btn" onclick="switchTab('backtest', this)">
       <span class="nav-icon">📊</span>
@@ -261,12 +348,12 @@
     </button>
     <button class="nav-btn" onclick="switchTab('news', this)">
       <span class="nav-icon">📰</span>
-      <span>Berita USD</span>
+      <span>Berita</span>
     </button>
   </nav>
 
   <script src="indicators.js"></script>
   <script src="backtest.js"></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
