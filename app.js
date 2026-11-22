@@ -21,8 +21,64 @@ const state = {
   autoTrading: false,
   autoTimer: null,
   notifyEnabled: false,
-  settings: { mode: 'testnet', apiKey: '', apiSecret: '', interval: '5m', format: 100 },
+  settings: { mode: 'testnet', apiKey: '', apiSecret: '', interval: '5m', format: 100, proxyUrl: '' },
+  history: [],           // trade history
+  activeTab: 'dashboard',
 };
+
+/* ===================== TRADE HISTORY ===================== */
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem('tb_history');
+    if (raw) state.history = JSON.parse(raw);
+  } catch (e) { state.history = []; }
+}
+function saveHistory() {
+  localStorage.setItem('tb_history', JSON.stringify(state.history));
+}
+function recordTrade(entry) {
+  state.history.unshift({
+    ...entry, ts: Date.now(), id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+  });
+  if (state.history.length > 100) state.history.length = 100;
+  saveHistory();
+  renderHistory();
+  renderStats();
+}
+function tradePnl(t) {
+  // For closed trades: sell-buy on qty; for our demo record realized side
+  if (t.pnl !== undefined) return t.pnl;
+  return 0;
+}
+function renderStats() {
+  const el = document.getElementById('statsTotal');
+  if (!el) return;
+  const wins = state.history.filter((t) => (t.pnl || 0) > 0).length;
+  const losses = state.history.filter((t) => (t.pnl || 0) < 0).length;
+  const totalPnl = state.history.reduce((a, t) => a + (t.pnl || 0), 0);
+  el.innerHTML =
+    `Total Trade: <b>${state.history.length}</b>` +
+    ` &nbsp; Win: <b style="color:#22c55e">${wins}</b>` +
+    ` &nbsp; Loss: <b style="color:#e5484d">${losses}</b>` +
+    ` &nbsp; Total PnL: <b style="color:${totalPnl >= 0 ? '#22c55e' : '#e5484d'}">$${totalPnl.toFixed(2)}</b>`;
+}
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if (!el) return;
+  if (!state.history.length) {
+    el.innerHTML = '<p class="muted">Belum ada trade tercatat.</p>';
+    return;
+  }
+  el.innerHTML = state.history.map((t) => {
+    const pnl = t.pnl || 0;
+    const cls = pnl > 0 ? 'up' : (pnl < 0 ? 'down' : '');
+    const when = new Date(t.ts).toLocaleString();
+    return `<div class="hrow"><span class="badge ${t.side === 'BUY' ? 'buy' : 'sell'}" style="font-size:.85rem">${t.side}</span>
+      <span>${t.symbol}</span><span>@ ${t.price}</span>
+      <span class="${cls}" style="font-weight:700">$${pnl.toFixed(2)}</span>
+      <span class="muted small">${when}</span></div>`;
+  }).join('');
+}
 
 /* ===================== PERSISTENCE ===================== */
 function loadSettings() {
@@ -203,18 +259,11 @@ function notify(title, body) {
 function orderBase() {
   return state.settings.mode === 'testnet' ? TESTNET_ORDER_BASE : DATA_BASE;
 }
-function signedAllowed() {
-  // Note: real mode against api.binance.com via browser is BLOCKED by CORS.
-  // We use data-api.binance.vision (CORS *) — real-mode signed orders will
-  // only function if Binance permits CORS there (testnet does). Real
-  // production api.binance.com requires a server-side proxy.
-  return true;
-}
 
 async function placeOrder(side) {
-  const { apiKey, apiSecret, interval } = state.settings;
-  if (!apiKey || !apiSecret) {
-    alert('Isi API Key & Secret di Pengaturan dulu (testnet: buat di testnet.binance.vision).');
+  const { apiKey, apiSecret, interval, proxyUrl } = state.settings;
+  if (!apiKey) {
+    alert('Isi API Key di Pengaturan dulu (testnet: buat di testnet.binance.vision).');
     return { error: 'no-keys' };
   }
   const sym = SYMBOL_MAP[currentDisplay].api;
@@ -222,31 +271,59 @@ async function placeOrder(side) {
   const qtyPrecision = 3; // simplified; production: query exchangeInfo
   const quantity = Number((state.settings.format * 0.1 / (price || 1)).toFixed(qtyPrecision));
   const now = Date.now();
-  const params = {
-    symbol: sym, side, type: 'LIMIT', timeInForce: 'GTC',
-    price: price.toFixed(2), quantity: String(quantity), timestamp: now,
-  };
-  // via BTCUSDT etc, price might be < 100 for some; but fine for demo
-  const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
-  const signature = await signQuery(query, apiSecret);
-  const url = `${orderBase()}/api/v3/order?${query}&signature=${signature}`;
+
+  // Determine endpoint + payload per mode
+  let url, payload, headers;
+  if (state.settings.mode === 'real') {
+    // Route through Cloudflare Worker proxy (secret stays on server)
+    if (!proxyUrl) {
+      alert('Mode Real butuh Proxy URL. Isi URL Cloudflare Worker di Pengaturan (lihat README / folder worker/).');
+      return { error: 'no-proxy' };
+    }
+    if (!apiSecret) {
+      alert('Untuk mode real, API Secret disimpan di worker (BINANCE_SECRET), bukan di browser. Isi Proxy URL lalu di worker set secret-nya.');
+      return { error: 'no-secret' };
+    }
+    url = proxyUrl.replace(/\/$/, '') + '/order';
+    payload = { apiKey, symbol: sym, side, type: 'LIMIT', timeInForce: 'GTC', price: price.toFixed(2), quantity: String(quantity) };
+    headers = { 'Content-Type': 'application/json' };
+  } else {
+    // Testnet: sign locally (secret stored in browser is fine for testnet)
+    if (!apiSecret) {
+      alert('Isi API Secret di Pengaturan untuk mode testnet.');
+      return { error: 'no-secret' };
+    }
+    const params = {
+      symbol: sym, side, type: 'LIMIT', timeInForce: 'GTC',
+      price: price.toFixed(2), quantity: String(quantity), timestamp: now,
+    };
+    const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
+    const signature = await signQuery(query, apiSecret);
+    url = `${orderBase()}/api/v3/order?${query}&signature=${signature}`;
+    headers = { 'X-MBX-APIKEY': apiKey, 'Content-Type': 'application/x-www-form-urlencoded' };
+  }
 
   const btn = document.getElementById(side === 'BUY' ? 'buyBtn' : 'sellBtn');
   if (btn) btn.disabled = true;
   document.getElementById('lastOrder').textContent = `Mengeksekusi ${side}...`;
   try {
-    const res = await fetch(url, { method: 'POST', headers: { 'X-MBX-APIKEY': apiKey, 'Content-Type': 'application/x-www-form-urlencoded' } });
+    const res = await fetch(url, { method: 'POST', headers, body: payload ? JSON.stringify(payload) : undefined });
     const data = await res.json();
     if (res.ok || data.orderId) {
       state.lastTradeSide = side;
+      const msg = `Order ${side} terkirim (ID ${data.orderId || '?'}) via ${state.settings.mode.toUpperCase()}`;
+      document.getElementById('lastOrder').textContent = `✓ ${msg}`;
+      recordTrade({ side, symbol: sym, price: price.toFixed(2), qty: quantity, pnl: undefined, mode: state.settings.mode, orderId: data.orderId });
       notify('Order Terkirim', `${currentDisplay} ${side} @ ${fmtPrice(price)} qty ${quantity}`);
-      document.getElementById('lastOrder').textContent = `✓ Order ${side} terkirim (ID ${data.orderId || '?'})`;
+      return { ok: true, orderId: data.orderId };
     } else {
       document.getElementById('lastOrder').textContent = `✗ Gagal: ${data.msg || JSON.stringify(data)}`;
       alert('Order gagal: ' + (data.msg || res.status));
+      return { error: data.msg };
     }
   } catch (e) {
     document.getElementById('lastOrder').textContent = '✗ Error: ' + e.message;
+    return { error: e.message };
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -294,18 +371,98 @@ async function refresh() {
   }
 }
 
+/* ===================== BACKTEST ===================== */
+let btChart = null;
+async function runBacktestUI() {
+  const btn = document.getElementById('btRunBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Menjalankan backtest...'; }
+  const out = document.getElementById('btResult');
+  out.innerHTML = '<p class="muted">Menghitung indikator & simulasi...</p>';
+  const sym = SYMBOL_MAP[currentDisplay];
+  const limit = parseInt(document.getElementById('btLimit').value, 10) || 300;
+  const mode = document.getElementById('btMode').value;
+  try {
+    const result = await window.backtest.runBacktest(sym.api, state.settings.interval, limit, mode);
+    const m = result.metrics;
+    const mm = [
+      ['Return', m.totalReturnPct.toFixed(2) + '%', m.totalReturnPct >= 0 ? 'up' : 'down'],
+      ['Profit Bersih', '$' + m.netProfit.toFixed(2), m.netProfit >= 0 ? 'up' : 'down'],
+      ['Trade', m.tradesCount, ''],
+      ['Win Rate', m.winRatePct.toFixed(1) + '%', ''],
+      ['Max Drawdown', m.maxDrawdownPct.toFixed(1) + '%', 'down'],
+      ['Profit Factor', m.profitFactor.toFixed(2), m.profitFactor >= 1 ? 'up' : 'down'],
+    ].map(([k, v, cls]) => `<div class="bt-m"><span>${k}</span><span class="${cls}">${v}</span></div>`).join('');
+    out.innerHTML = `<div class="bt-metrics">${mm}</div>
+      <p class="muted small">Equity akhir: <b>$${m.finalEquity.toFixed(2)}</b> (modal 1000) · ${limit} bar · mode ${mode}</p>`;
+    drawBacktestChart(result.equityCurve);
+    // Top recent trades
+    const recent = result.trades.slice(0, 8);
+    if (recent.length) {
+      out.innerHTML += '<h4 class="bt-h">Trade terbaru (backtest)</h4><div class="bt-trades">' +
+        recent.map((t) => `<div class="hrow"><span class="badge ${t.side === 'long' ? 'buy' : 'sell'}" style="font-size:.8rem">${t.side.toUpperCase()}</span>
+          <span>${fmtPrice(t.entry)} → ${fmtPrice(t.exit)}</span>
+          <span class="${t.pnl >= 0 ? 'up' : 'down'}" style="font-weight:700">$${t.pnl.toFixed(2)}</span></div>`).join('') +
+        '</div>';
+    }
+  } catch (e) {
+    out.innerHTML = '<p class="down">Error backtest: ' + e.message + '</p>';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Jalankan Backtest'; }
+  }
+}
+function drawBacktestChart(curve) {
+  const canvas = document.getElementById('btChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
+  const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  const w = canvas.offsetWidth, h = canvas.offsetHeight;
+  ctx.clearRect(0, 0, w, h);
+  const min = Math.min(...curve), max = Math.max(...curve);
+  const pad = 10;
+  ctx.beginPath(); ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2;
+  curve.forEach((v, i) => {
+    const x = pad + (i / (curve.length - 1 || 1)) * (w - 2 * pad);
+    const y = h - pad - ((v - min) / ((max - min) || 1)) * (h - 2 * pad);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  // baseline 1000
+  if (min <= 1000 && max >= 1000) {
+    const y0 = h - pad - ((1000 - min) / ((max - min) || 1)) * (h - 2 * pad);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(pad, y0); ctx.lineTo(w - pad, y0); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+/* ===================== TABS ===================== */
+function setTab(tab) {
+  state.activeTab = tab;
+  const tabs = ['dashboard', 'backtest', 'history'];
+  tabs.forEach((t) => {
+    document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
+    const btn = document.getElementById('tabBtn-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  if (tab === 'history') { renderHistory(); renderStats(); }
+}
+
 /* ===================== EVENTS / INIT ===================== */
 function renderSettingsForm() {
   document.getElementById('setMode').value = state.settings.mode;
   document.getElementById('setKey').value = state.settings.apiKey;
   document.getElementById('setSecret').value = state.settings.apiSecret;
   document.getElementById('setInterval').value = state.settings.interval;
+  document.getElementById('setProxy').value = state.settings.proxyUrl || '';
 }
 function saveSettingsForm() {
   state.settings.mode = document.getElementById('setMode').value;
   state.settings.apiKey = document.getElementById('setKey').value.trim();
   state.settings.apiSecret = document.getElementById('setSecret').value.trim();
   state.settings.interval = document.getElementById('setInterval').value;
+  state.settings.proxyUrl = document.getElementById('setProxy').value.trim();
   saveSettings();
   closeSettings();
   updateStatus('Pengaturan disimpan');
@@ -317,6 +474,7 @@ function closeSettings() { document.getElementById('settingsModal').style.displa
 
 function init() {
   loadSettings();
+  loadHistory();
   document.getElementById('buyBtn').addEventListener('click', () => placeOrder('BUY'));
   document.getElementById('sellBtn').addEventListener('click', () => placeOrder('SELL'));
   document.getElementById('autoBtn').addEventListener('click', () => setAutoTrading(!state.autoTrading));
@@ -325,6 +483,11 @@ function init() {
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('settingsClose').addEventListener('click', closeSettings);
   document.getElementById('settingsSave').addEventListener('click', saveSettingsForm);
+  document.getElementById('btRunBtn').addEventListener('click', runBacktestUI);
+  ['dashboard', 'backtest', 'history'].forEach((t) => {
+    const bn = document.getElementById('tabBtn-' + t);
+    if (bn) bn.addEventListener('click', () => setTab(t));
+  });
 
   // symbol selector
   document.getElementById('symbolSel').addEventListener('change', (e) => {

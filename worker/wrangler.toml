@@ -1,0 +1,8 @@
+# Cloudflare Workers config — Trading Bot Real Proxy
+# Deploy: npx wrangler deploy
+name = "trading-bot-proxy"
+main = "_worker.js"
+compatibility_date = "2025-01-01"
+
+# Set secret sekali: npx wrangler secret put BINANCE_SECRET
+# Worker URL: https://trading-bot-proxy.<subdomain>.workers.dev

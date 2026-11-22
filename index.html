@@ -8,13 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="TradeBot">
   <meta name="theme-color" content="#0b0e11">
-  <meta name="description" content="Bot trading PWA gratis untuk kripto: EMA/SMA/RSI/MACD/Bollinger + auto-trading + notifikasi. Berbasis Binance.">
+  <meta name="description" content="Bot trading PWA gratis untuk kripto: RSI/MACD/Bollinger/SMA + backtest + auto-trading + notifikasi. Berbasis Binance.">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
-  <script src="indicators.js" defer></script>
-  <script src="app.js" defer></script>
   <title>TradeBot — Trading PWA</title>
 </head>
 <body>
@@ -26,8 +24,15 @@
     <p>Trading Bot PWA — gratis, untuk Android</p>
   </header>
 
-  <main id="app">
-    <!-- Controls -->
+  <!-- Tab bar -->
+  <nav class="tabbar">
+    <button class="tabbtn active" id="tabBtn-dashboard">&#9632; Dashboard</button>
+    <button class="tabbtn" id="tabBtn-backtest">&#128202; Backtest</button>
+    <button class="tabbtn" id="tabBtn-history">&#128221; Riwayat</button>
+  </nav>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <main id="tab-dashboard" class="tabpane" style="display:block">
     <div class="controls">
       <select id="symbolSel" class="ctrl">
         <option value="BTCUSD">Bitcoin (BTCUSD)</option>
@@ -46,14 +51,12 @@
       <button class="ctrl-icon" id="refreshBtn" title="Refresh">&#10227;</button>
     </div>
 
-    <!-- Price card -->
     <section class="card price-card">
       <span class="sym" id="displaySymbol">BTCUSD</span>
       <span class="price" id="livePrice">—</span>
       <span class="status-msg" id="statusMsg">Memuat...</span>
     </section>
 
-    <!-- Signal -->
     <section class="card signal-card">
       <div class="signal-row">
         <span class="badge hold" id="signalBadge">HOLD</span>
@@ -62,12 +65,10 @@
       <div class="status-msg" id="lastOrder"></div>
     </section>
 
-    <!-- Chart -->
     <section class="card chart-card">
       <canvas id="priceChart"></canvas>
     </section>
 
-    <!-- Indicators -->
     <section class="grid-2">
       <div class="card ind"><span class="ind-label">SMA 20</span><span id="sma20">—</span></div>
       <div class="card ind"><span class="ind-label">SMA 50</span><span id="sma50">—</span></div>
@@ -77,7 +78,6 @@
       <div class="card ind"><span class="ind-label">Bollinger Low</span><span id="bbL">—</span></div>
     </section>
 
-    <!-- Actions -->
     <section class="actions">
       <button class="btn btn-btn" id="autoBtn">&#9654; Auto-trade</button>
       <button class="btn btn-primary" id="buyBtn">&#9650; BUY</button>
@@ -85,6 +85,33 @@
       <button class="btn btn-ghost" id="notifyBtn">&#128276; Notifikasi</button>
       <button class="btn btn-ghost" id="settingsBtn">&#9881; Pengaturan</button>
     </section>
+  </main>
+
+  <!-- ===================== BACKTEST ===================== -->
+  <main id="tab-backtest" class="tabpane" style="display:none">
+    <section class="card">
+      <div class="bt-controls">
+        <label>Bar <input type="number" id="btLimit" value="300" min="100" max="1000"></label>
+        <label>Mode
+          <select id="btMode">
+            <option value="both">Long &amp; Short</option>
+            <option value="long">Long saja</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn btn-btn" id="btRunBtn" style="width:100%">&#9654; Jalankan Backtest</button>
+      <p class="muted small" style="margin-top:.5rem">Menggunakan data historis &amp; periode aktif. Dua skenario tersedia.</p>
+    </section>
+    <section class="card">
+      <canvas id="btChart"></canvas>
+    </section>
+    <div id="btResult"></div>
+  </main>
+
+  <!-- ===================== HISTORY ===================== -->
+  <main id="tab-history" class="tabpane" style="display:none">
+    <section class="card" id="statsTotal">Memuat statistik...</section>
+    <section class="card" id="historyList"><p class="muted">Belum ada trade.</p></section>
   </main>
 
   <!-- Settings Modal -->
@@ -104,8 +131,11 @@
         <label>API Key
           <input type="text" id="setKey" placeholder="Binance API Key" autocomplete="off">
         </label>
-        <label>API Secret
+        <label>API Secret (testnet)
           <input type="password" id="setSecret" placeholder="Binance API Secret" autocomplete="off">
+        </label>
+        <label>Proxy URL Real
+          <input type="text" id="setProxy" placeholder="https://trading-bot-proxy.xx.workers.dev" autocomplete="off">
         </label>
         <label>Interval Auto-trade
           <select id="setInterval">
@@ -117,17 +147,21 @@
           </select>
         </label>
         <p class="hint">
-          <b>Testnet:</b> buat key gratis di <code>testnet.binance.vision</code> (uang virtual).
-          <br><b>Real:</b> key dari Binance asli. Mode real dari browser dibatasi CORS — untuk akun real,
-          sebaiknya gunakan server/proxy (detail di README). API key disimpan SECARA LOKAL di browser kamu (localStorage).
+          <b>Testnet:</b> key gratis di <code>testnet.binance.vision</code> (uang virtual).
+          <br><b>Real:</b> butuh <b>Proxy URL</b> (Cloudflare Worker gratis, lihat folder <code>worker/</code>).
+          Secret real disimpan di worker (<code>BINANCE_SECRET</code>), bukan di browser. Key &amp; riwayat
+          tersimpan <b>lokal</b> di device kamu.
         </p>
       </div>
       <div class="modal-foot">
-        <button class="btn btn-primary" id="settingsSave">Simpan</button>
+        <button class="btn btn-primary btn-full" id="settingsSave">Simpan</button>
       </div>
     </div>
   </div>
 
   <footer class="footer">TradeBot PWA — untuk belajar. Bukan saran investasi. &#9878;</footer>
+  <script src="indicators.js" defer></script>
+  <script src="backtest.js" defer></script>
+  <script src="app.js" defer></script>
 </body>
 </html>

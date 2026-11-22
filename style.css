@@ -79,3 +79,26 @@ body {
 .btn-full { width: 100%; }
 /* Footer */
 .footer { text-align: center; padding: 1rem; font-size: 0.7rem; color: var(--muted); border-top: 1px solid var(--border); }
+
+/* ===================== TABS ===================== */
+.tabbar { display: flex; max-width: 700px; width: 100%; margin: 0 auto; padding: 0.75rem 1rem 0; gap: 0.4rem; }
+.tabbtn { flex: 1; background: var(--card); border: 1px solid var(--border); color: var(--muted); padding: 0.6rem; border-radius: 10px 10px 0 0; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.tabbtn.active { background: #20283a; color: var(--gold); border-color: var(--gold); }
+.tabpane { flex: 1; max-width: 700px; width: 100%; margin: 0 auto; padding: 0.75rem 1rem 80px; }
+
+/* ===================== BACKTEST ===================== */
+.bt-controls { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
+.bt-controls label { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
+.bt-controls input, .bt-controls select { background: #12161c; border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 8px; font-size: 0.95rem; }
+.bt-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.5rem; }
+.bt-m { display: flex; justify-content: space-between; background: #12161c; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.85rem; }
+.bt-h { margin: 0.8rem 0 0.4rem; font-size: 0.95rem; }
+.bt-trades { display: flex; flex-direction: column; gap: 0.3rem; }
+
+/* ===================== HISTORY ===================== */
+.hrow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.45rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.hrow:last-child { border-bottom: none; }
+.muted { color: var(--muted); }
+.small { font-size: 0.7rem; }
+
+#btChart { width: 100%; height: 160px; display: block; }
