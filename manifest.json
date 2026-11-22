@@ -1,20 +1,11 @@
 {
-  "name": "TradeBot — Trading PWA",
-  "short_name": "TradeBot",
-  "description": "Bot trading PWA gratis untuk kripto: EMA/SMA/RSI/MACD/Bollinger + auto-trading + notifikasi. Berbasis Binance (testnet/real).",
-  "version": "2.0.0",
-  "start_url": "./",
+  "name": "AUREUS QUANT • XAUUSD Terminal",
+  "short_name": "Aureus Quant",
+  "description": "PWA Trading XAUUSD strategi London-NY Pullback dengan chart real-time dan pelacak AI.",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0b0e11",
-  "theme_color": "#0b0e11",
   "orientation": "portrait",
-  "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ],
-  "shortcuts": [
-    { "name": "Buka Dashboard", "url": "./", "description": "Buka dashboard trading" }
-  ]
+  "background_color": "#090c12",
+  "theme_color": "#090c12"
 }
