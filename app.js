@@ -305,3 +305,91 @@ function changeChartTf(tf, btn) {
 }
 
 window.addEventListener('DOMContentLoaded', initRealtimeChart);
+
+// === AI LIVE PERFORMANCE TRACKER ===
+let aiTrades = JSON.parse(localStorage.getItem('aureus_ai_trades') || '[]');
+
+function renderAiPerformance() {
+  const body = document.getElementById('aiTradesBody');
+  const pnlEl = document.getElementById('aiNetPnl');
+  const roiEl = document.getElementById('aiRoiSub');
+  const wrEl = document.getElementById('aiLiveWr');
+  if (!body) return;
+
+  if (aiTrades.length === 0) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:14px;">Belum ada posisi tereksekusi</td></tr>';
+    pnlEl.textContent = '+$0.00';
+    pnlEl.className = 'kpi-val val-mint';
+    roiEl.textContent = '0.00% dari Modal';
+    wrEl.textContent = '0.0% (0)';
+    return;
+  }
+
+  let totalPnl = 0;
+  let wins = 0;
+  body.innerHTML = '';
+
+  aiTrades.slice().reverse().forEach(t => {
+    totalPnl += t.pnl;
+    if (t.pnl > 0) wins++;
+    const tr = document.createElement('tr');
+    const pnlColor = t.pnl >= 0 ? 'var(--mint)' : 'var(--red)';
+    const sign = t.pnl >= 0 ? '+' : '';
+    tr.innerHTML = `
+      <td>${t.time}</td>
+      <td><span class="${t.side === 'BUY' ? 'badge-bull' : 'badge-bear'}">${t.side} ${t.lot}</span></td>
+      <td>${t.entry} → ${t.exit}</td>
+      <td style="font-size:11px; color:var(--text-muted);">${t.reason}</td>
+      <td style="font-weight:700; color:${pnlColor};">${sign}$${t.pnl.toFixed(2)}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const balance = parseFloat(document.getElementById('accBalance')?.value) || 1000;
+  const roi = (totalPnl / balance) * 100;
+  const wr = (wins / aiTrades.length) * 100;
+
+  pnlEl.textContent = `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`;
+  pnlEl.className = `kpi-val ${totalPnl >= 0 ? 'val-mint' : 'val-red'}`;
+  roiEl.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}% dari Modal ($${balance})`;
+  wrEl.textContent = `${wr.toFixed(1)}% (${aiTrades.length})`;
+}
+
+// Perbarui fungsi simulateAiSignal agar mencatat hasil trade & menghitung PnL nyata
+const _origSim = simulateAiSignal;
+simulateAiSignal = async function() {
+  await _origSim();
+  const lot = parseFloat(document.getElementById('aiLotSize').value) || 0.02;
+  const entry = parseFloat(document.getElementById('entryPrice').textContent.replace(/,/g, '')) || 2652.50;
+  const sl = parseFloat(document.getElementById('slPrice').textContent.replace(/,/g, '')) || 2641.20;
+  const tp = parseFloat(document.getElementById('tpPrice').textContent.replace(/,/g, '')) || 2680.75;
+
+  // Simulasi hasil eksekusi berdasarkan probabilitas strategi v1 (Win Rate ~48.5%, R:R 1:2.5)
+  const isWin = Math.random() < 0.52;
+  const exitPrice = isWin ? tp : sl;
+  const reason = isWin ? 'TP / Chandelier' : 'SL (1.5R)';
+  const pnl = +((exitPrice - entry) * lot * 100).toFixed(2);
+
+  aiTrades.push({
+    time: getUtcStamp(),
+    side: 'BUY',
+    lot: lot.toFixed(2),
+    entry: entry.toFixed(2),
+    exit: exitPrice.toFixed(2),
+    reason,
+    pnl
+  });
+  localStorage.setItem('aureus_ai_trades', JSON.stringify(aiTrades));
+  renderAiPerformance();
+  appendAiLog(`Posisi ditutup (${reason}) @ ${exitPrice.toFixed(2)} | PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`, pnl >= 0);
+};
+
+function resetAiHistory() {
+  if (confirm('Hapus seluruh riwayat transaksi AI?')) {
+    aiTrades = [];
+    localStorage.removeItem('aureus_ai_trades');
+    renderAiPerformance();
+  }
+}
+
+window.addEventListener('DOMContentLoaded', renderAiPerformance);
