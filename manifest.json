@@ -1,0 +1,16 @@
+{
+  "name": "Trading Bot PWA",
+  "short_name": "TradeBot",
+  "description": "Free PWA trading bot for crypto (paper trading / testnet). No API key required for market data.",
+  "version": "1.0.0",
+  "author": { "name": "Ar", "email": "ar@example.com" },
+  "contact": { "url": "https://example.com" },
+  "web_app": true,
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [],
+  "start_url": ".",
+  "display": "auto",
+  "permissions": ["storage", "activeTab"],
+  "tools": []
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TradeBot">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Free PWA trading bot for crypto (paper trading / testnet). No API key required for market data.">
+  <link rel="manifest" href="/manifest.json">
+  <title>Trading Bot PWA</title>
+  <style>/* inline fallback */</style>
+  <script src="/script.js"></script>
+</head>
+<body>
+  <header class="header">
+    <h1>&#128176; Trading Bot PWA</h1>
+    <p>Bot trading kripto gratis &amp; gratis &mdash; pakai di Android</p>
+  </header>
+  <main id="app">
+    <div class="price-box">
+      <span class="sym" id="currentSymbol">XAUUSD</span>
+      Live Price: <span id="price">—</span>
+    </div>
+    <div class="signals-box" id="signals">
+      <p class="pending">Sedang memuat data...</p>
+    </div>
+    <button class="btn btn-primary" id="buyBtn" onclick="executeTrade('BUY')">BUY</button>
+    <button class="btn btn-secondary" id="sellBtn" onclick="executeTrade('SELL')">SELL</button>
+    <div class="status" id="status"></div>
+  </main>
+</body>
+</html>
