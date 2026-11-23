@@ -792,3 +792,35 @@ setTimeout(() => {
 setTimeout(() => {
   if (!v15Chart) loadGoldHistoryAndStream(currentTf || '1h');
 }, 1500);
+
+async function syncFromTermux(manual = false) {
+  try {
+    const res = await fetch(`./ai_state.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const remote = await res.json();
+    if (Array.isArray(remote.trades) && remote.trades.length > 0) {
+      const seen = new Set(aiTrades.map(t => `${t.timestamp}_${t.entry}_${t.exit}`));
+      let added = 0;
+      remote.trades.forEach(rt => {
+        const k = `${rt.timestamp}_${rt.entry}_${rt.exit}`;
+        if (!seen.has(k)) { aiTrades.push(rt); added++; }
+      });
+      if (added > 0) {
+        localStorage.setItem('aureus_ai_trades', JSON.stringify(aiTrades));
+        renderAiPerformance();
+        appendAiLog(`Sync Termux: ${added} transaksi baru (${remote.updated_at}).`, true);
+      } else if (manual) {
+        appendAiLog(`Sync Termux: Sudah paling baru (${remote.updated_at}).`, true);
+      }
+    } else if (manual) {
+      appendAiLog(`Sync Termux aktif (${remote.updated_at}). Belum ada trade tertutup.`);
+    }
+    if (remote.open_trade) {
+      const ot = remote.open_trade;
+      appendAiLog(`Posisi Aktif: ${ot.side} ${ot.lot} Lot @ ${ot.entry} | SL: ${ot.sl} | TP: ${ot.tp}`, true);
+    }
+  } catch (e) {
+    if (manual) appendAiLog('Gagal memuat ai_state.json.');
+  }
+}
+window.addEventListener('DOMContentLoaded', () => syncFromTermux(false));
