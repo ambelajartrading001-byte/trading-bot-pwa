@@ -824,3 +824,28 @@ async function syncFromTermux(manual = false) {
   }
 }
 window.addEventListener('DOMContentLoaded', () => syncFromTermux(false));
+
+// === KALIBRASI SELISIH HARGA EXNESS (±$) V17 ===
+function initExnessCalibrationUI() {
+  const inp = document.getElementById('exnessOffsetInput');
+  if (!inp) return;
+  const saved = parseFloat(localStorage.getItem('xau_price_offset') || '0');
+  inp.value = isNaN(saved) ? '0' : String(saved);
+}
+
+function applyExnessOffset() {
+  const inp = document.getElementById('exnessOffsetInput');
+  if (!inp) return;
+  const val = parseFloat(inp.value);
+  const clean = isNaN(val) ? 0 : +val.toFixed(2);
+  localStorage.setItem('xau_price_offset', String(clean));
+  inp.value = String(clean);
+  if (typeof loadGoldHistoryAndStream === 'function') {
+    loadGoldHistoryAndStream(typeof currentTf !== 'undefined' ? currentTf : '1h');
+  }
+  if (typeof appendAiLog === 'function') {
+    appendAiLog(`Kalibrasi Exness disimpan: ${clean >= 0 ? '+' : ''}${clean.toFixed(2)} USD`, true);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', initExnessCalibrationUI);
