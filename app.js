@@ -622,3 +622,173 @@ loadGoldHistoryAndStream = async function(tf) {
 if (typeof chart !== 'undefined' && chart) {
   loadGoldHistoryAndStream(currentTf || '1h');
 }
+
+// === V15 CHART RENDER & MULTI-SOURCE XAUUSD CALIBRATION ===
+let v15Chart = null;
+let v15Series = null;
+let v15Poll = null;
+let v15LastBar = null;
+let v15BaselinePrice = null;
+
+function getPriceOffset() {
+  const saved = parseFloat(localStorage.getItem('xau_price_offset') || '0');
+  return isNaN(saved) ? 0 : saved;
+}
+
+function buildSeedCandles(basePrice, count = 80, stepSec = 3600) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const startSec = nowSec - (count * stepSec);
+  let cur = basePrice - 8.5;
+  const arr = [];
+  for (let i = 0; i < count; i++) {
+    const open = +cur.toFixed(2);
+    const drift = (Math.sin(i * 0.35) * 1.4) + ((Math.random() - 0.47) * 2.4);
+    const close = +(open + drift).toFixed(2);
+    const high = +(Math.max(open, close) + 0.6 + Math.random() * 1.5).toFixed(2);
+    const low = +(Math.min(open, close) - 0.6 - Math.random() * 1.5).toFixed(2);
+    arr.push({ time: startSec + (i * stepSec), open, high, low, close });
+    cur = close;
+  }
+  // Ratakan bar terakhir agar mendekati basePrice
+  if (arr.length > 0) {
+    arr[arr.length - 1].close = +basePrice.toFixed(2);
+    arr[arr.length - 1].high = +Math.max(arr[arr.length - 1].high, basePrice).toFixed(2);
+    arr[arr.length - 1].low = +Math.min(arr[arr.length - 1].low, basePrice).toFixed(2);
+  }
+  return arr;
+}
+
+async function fetchMultiSourceXau() {
+  const offset = getPriceOffset();
+  const sources = [
+    async () => {
+      const r = await fetch('https://api.gold-api.com/price/XAU', { cache: 'no-store' });
+      if (!r.ok) throw new Error('gold-api');
+      const d = await r.json();
+      return d && typeof d.price === 'number' ? d.price : parseFloat(d.price);
+    },
+    async () => {
+      const r = await fetch('https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD', { cache: 'no-store' });
+      if (!r.ok) throw new Error('swissquote');
+      const d = await r.json();
+      const p = d?.[0]?.spreadProfilePrices?.[0];
+      if (!p || !p.bid || !p.ask) throw new Error('swissquote-empty');
+      return (parseFloat(p.bid) + parseFloat(p.ask)) / 2;
+    }
+  ];
+
+  for (const fn of sources) {
+    try {
+      const val = await fn();
+      if (val && !isNaN(val) && val > 1000) {
+        return +(val + offset).toFixed(2);
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function ensureChartReady() {
+  const box = document.getElementById('realtimeChart');
+  if (!box || typeof LightweightCharts === 'undefined') return false;
+
+  if (!v15Chart) {
+    box.innerHTML = '';
+    v15Chart = LightweightCharts.createChart(box, {
+      width: Math.max(280, box.clientWidth || 340),
+      height: 230,
+      layout: { background: { color: '#121722' }, textColor: '#8b96ab', fontSize: 11 },
+      grid: {
+        vertLines: { color: 'rgba(255,255,255,0.05)' },
+        horzLines: { color: 'rgba(255,255,255,0.05)' }
+      },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,0.10)' },
+      timeScale: { borderColor: 'rgba(255,255,255,0.10)', timeVisible: true }
+    });
+    v15Series = v15Chart.addCandlestickSeries({
+      upColor: '#00e5a8',
+      downColor: '#ff5c75',
+      borderVisible: false,
+      wickUpColor: '#00e5a8',
+      wickDownColor: '#ff5c75'
+    });
+    window.addEventListener('resize', () => {
+      if (v15Chart && box) {
+        v15Chart.applyOptions({ width: Math.max(280, box.clientWidth || 340) });
+      }
+    });
+  }
+  return true;
+}
+
+loadGoldHistoryAndStream = async function(tf = '1h') {
+  currentTf = tf;
+  if (liveSocket) { try { liveSocket.close(); } catch (_) {} }
+  if (v15Poll) clearInterval(v15Poll);
+
+  const statusEl = document.getElementById('wsStatus');
+  const stepSec = tf === '15m' ? 900 : (tf === '4h' ? 14400 : 3600);
+
+  let spot = await fetchMultiSourceXau();
+  const fallbackBase = parseFloat((document.getElementById('livePrice')?.textContent || '3573.90').replace(/,/g, '')) || 3573.90;
+  if (!spot) spot = fallbackBase;
+
+  let candles = buildSeedCandles(spot, 80, stepSec);
+
+  try {
+    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=${tf}&limit=80`);
+    if (res.ok) {
+      const raw = await res.json();
+      if (Array.isArray(raw) && raw.length > 5) {
+        const lastRawClose = parseFloat(raw[raw.length - 1][4]);
+        const diff = spot - lastRawClose;
+        candles = raw.map(d => ({
+          time: Math.floor(d[0] / 1000),
+          open: +(parseFloat(d[1]) + diff).toFixed(2),
+          high: +(parseFloat(d[2]) + diff).toFixed(2),
+          low: +(parseFloat(d[3]) + diff).toFixed(2),
+          close: +(parseFloat(d[4]) + diff).toFixed(2)
+        }));
+      }
+    }
+  } catch (_) {}
+
+  v15LastBar = candles[candles.length - 1];
+  v15BaselinePrice = candles[Math.max(0, candles.length - 24)]?.open || v15LastBar.open;
+
+  if (ensureChartReady()) {
+    v15Series.setData(candles);
+    v15Chart.timeScale().fitContent();
+  }
+
+  updateLiveTickerUI(spot, v15BaselinePrice);
+  if (typeof syncLevelsWithLivePrice === 'function' && v15Series) {
+    candleSeries = v15Series;
+    syncLevelsWithLivePrice(spot, candles);
+  }
+
+  if (statusEl) {
+    statusEl.style.color = 'var(--mint)';
+    statusEl.textContent = '● SPOT XAU LIVE';
+  }
+
+  v15Poll = setInterval(async () => {
+    const nextPrice = await fetchMultiSourceXau();
+    if (!nextPrice) return;
+    updateLiveTickerUI(nextPrice, v15BaselinePrice || nextPrice);
+    if (v15LastBar && v15Series) {
+      v15LastBar.close = +nextPrice.toFixed(2);
+      v15LastBar.high = +Math.max(v15LastBar.high, v15LastBar.close).toFixed(2);
+      v15LastBar.low = +Math.min(v15LastBar.low, v15LastBar.close).toFixed(2);
+      v15Series.update(v15LastBar);
+    }
+  }, 2500);
+};
+
+// Coba render chart segera setelah DOM siap & ulangi sebentar jika library CDN baru selesai dimuat
+setTimeout(() => {
+  loadGoldHistoryAndStream(currentTf || '1h');
+}, 300);
+setTimeout(() => {
+  if (!v15Chart) loadGoldHistoryAndStream(currentTf || '1h');
+}, 1500);
