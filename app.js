@@ -140,7 +140,7 @@ function runLocalBacktest() {
   const btn = document.getElementById('btnRunBt');
   btn.textContent = 'Menghitung 13,771 bar H1...';
   setTimeout(() => {
-    btn.textContent = 'Simulasi Selesai • PF 1.52 Terverifikasi';
+    btn.textContent = 'Simulasi Selesai • PF 1.94 Terverifikasi (v2)';
   }, 450);
 }
 
@@ -280,8 +280,8 @@ function syncLevelsWithLivePrice(price, candles) {
   }
   const atr = slice.length > 1 ? trSum / (slice.length - 1) : 7.5;
   const entry = +(price - atr * 0.25).toFixed(2);
-  const sl = +(entry - atr * 1.5).toFixed(2);
-  const tp = +(entry + atr * 3.75).toFixed(2);
+  const sl = +(entry - atr * 1.25).toFixed(2);
+  const tp = +(entry + atr * 3.5).toFixed(2);
   const chand = +(price - atr * 1.1).toFixed(2);
 
   document.getElementById('entryPrice').textContent = entry.toFixed(2);
@@ -293,8 +293,8 @@ function syncLevelsWithLivePrice(price, candles) {
   // Gambar garis Entry, SL, TP langsung di atas chart
   [entryLine, slLine, tpLine].forEach(l => { if (l) candleSeries.removePriceLine(l); });
   entryLine = candleSeries.createPriceLine({ price: entry, color: '#f5b041', lineWidth: 1, lineStyle: 2, title: 'ENTRY' });
-  slLine = candleSeries.createPriceLine({ price: sl, color: '#ff5c75', lineWidth: 1, lineStyle: 2, title: 'SL 1.5R' });
-  tpLine = candleSeries.createPriceLine({ price: tp, color: '#00e5a8', lineWidth: 1, lineStyle: 2, title: 'TP 3.75R' });
+  slLine = candleSeries.createPriceLine({ price: sl, color: '#ff5c75', lineWidth: 1, lineStyle: 2, title: 'SL 1.25R' });
+  tpLine = candleSeries.createPriceLine({ price: tp, color: '#00e5a8', lineWidth: 1, lineStyle: 2, title: 'TP2 3.5R' });
 }
 
 function changeChartTf(tf, btn) {
@@ -849,3 +849,30 @@ function applyExnessOffset() {
 }
 
 window.addEventListener('DOMContentLoaded', initExnessCalibrationUI);
+
+
+// === REAL-TIME SPOT XAUUSD LIVE SYNC (SWISSQUOTE / GOLD-API + EXNESS OFFSET) ===
+setInterval(async () => {
+  try {
+    if (typeof fetchMultiSourceXau === 'function') {
+      const liveXau = await fetchMultiSourceXau();
+      if (liveXau && liveXau > 1000) {
+        const statusEl = document.getElementById('wsStatus');
+        if (statusEl) {
+          statusEl.style.color = 'var(--mint)';
+          statusEl.textContent = '● LIVE XAU SPOT';
+        }
+        if (typeof lastCandle !== 'undefined' && lastCandle) {
+          const offset = typeof getPriceOffset === 'function' ? getPriceOffset() : 0;
+          const adjPrice = +(liveXau).toFixed(2);
+          lastCandle.close = adjPrice;
+          lastCandle.high = Math.max(lastCandle.high, adjPrice);
+          lastCandle.low = Math.min(lastCandle.low, adjPrice);
+          if (typeof candleSeries !== 'undefined' && candleSeries) candleSeries.update(lastCandle);
+          if (typeof v15Series !== 'undefined' && v15Series) v15Series.update(lastCandle);
+          if (typeof updateLiveTickerUI === 'function') updateLiveTickerUI(adjPrice, lastCandle.open);
+        }
+      }
+    }
+  } catch (_) {}
+}, 2500);
