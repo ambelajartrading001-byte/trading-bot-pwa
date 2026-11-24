@@ -72,7 +72,7 @@ function toggleAutoAi() {
     btn.textContent = '⏹ Hentikan Auto Trading AI';
     stateEl.style.color = 'var(--mint)';
     stateEl.textContent = 'RUNNING • MEMINDAI XAUUSD H1';
-    appendAiLog(`Auto AI AKTIF (Mode: ${mode.toUpperCase()} | Lot: ${lot} | Strategi v1 PF 1.52).`, true);
+    appendAiLog(`Auto AI AKTIF (Mode: ${mode.toUpperCase()} | Lot: ${lot} | Strategi v1 PF 1.94).`, true);
 
     aiInterval = setInterval(() => {
       const hour = new Date().getUTCHours();
@@ -151,6 +151,7 @@ if ('serviceWorker' in navigator) {
 setInterval(updateSessionAndClock, 1000);
 updateSessionAndClock();
 calcLot();
+  if (typeof SMCVisualizer !== "undefined" && typeof candleSeries !== "undefined") SMCVisualizer.render(candleSeries, candles);
 
 // === REAL-TIME CANDLESTICK & LIVE STREAM ENGINE ===
 let chart, candleSeries, entryLine, slLine, tpLine, liveSocket;
@@ -289,6 +290,7 @@ function syncLevelsWithLivePrice(price, candles) {
   document.getElementById('tpPrice').textContent = tp.toFixed(2);
   document.getElementById('chandelierPrice').textContent = chand.toFixed(2);
   calcLot();
+  if (typeof SMCVisualizer !== "undefined" && typeof candleSeries !== "undefined") SMCVisualizer.render(candleSeries, candles);
 
   // Gambar garis Entry, SL, TP langsung di atas chart
   [entryLine, slLine, tpLine].forEach(l => { if (l) candleSeries.removePriceLine(l); });
