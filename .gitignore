@@ -1,0 +1,10 @@
+.env
+*.log
+credentials*
+secrets*
+__pycache__/
+.venv/
+node_modules/
+*.sqlite
+*.db
+data/
