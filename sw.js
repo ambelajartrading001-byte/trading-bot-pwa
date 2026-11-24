@@ -1,18 +1,40 @@
-const CACHE_NAME = 'aureus-quant-v2.7';
-const ASSETS = ['./', './index.html', './style.css?v=178', './app.js?v=178', './indicators.js', './backtest.js', './manifest.json'];
+const CACHE_NAME = 'aureus-quant-20261124205133';
+const ASSETS = [
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './indicators.js',
+  './smc_engine.js',
+  './smc_visualizer.js',
+  './manifest.json'
+];
 
-self.addEventListener('install', e => {
+self.addEventListener('install', (event) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS).catch(() => {})));
-});
-
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).catch(() => {})
   );
 });
 
-self.addEventListener('fetch', e => {
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+// Network-First: selalu ambil kode terbaru jika online, fallback ke cache jika offline
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    fetch(event.request)
+      .then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(event.request))
+  );
 });

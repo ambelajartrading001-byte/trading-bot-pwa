@@ -878,3 +878,14 @@ setInterval(async () => {
     }
   } catch (_) {}
 }, 2500);
+
+// Auto-reload PWA saat versi baru dari GitHub selesai diunduh
+if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
+}
