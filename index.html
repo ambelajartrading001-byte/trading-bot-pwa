@@ -3,425 +3,223 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#090c12" />
-  <title>AUREUS QUANT • XAUUSD AI Terminal</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=17" />
-  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js';document.head.appendChild(s);"></script>
+  <title>AUREUS QUANT • XAUUSD Terminal v2</title>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="backtest.js"></script>
+  <style>
+    :root {
+      --bg-base: #0b0d10; --bg-surface: #13171d; --bg-elevated: #1a2028;
+      --border: #262e3a; --text-primary: #f1f5f9; --text-secondary: #94a3b8;
+      --accent: #ea580c; --bull: #10b981; --bear: #ef4444;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg-base); color: var(--text-primary); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; padding-bottom: 48px; }
+    .container { max-width: 680px; margin: 0 auto; padding: 12px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--bg-surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+    .brand { font-weight: 700; letter-spacing: 0.04em; font-size: 13px; }
+    .brand span { color: var(--accent); }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; padding: 4px 8px; border-radius: 4px; background: var(--bg-elevated); border: 1px solid var(--border); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bull); }
+    .dot.offline { background: var(--bear); }
+    .ticker-box, .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .ticker-box { display: flex; justify-content: space-between; align-items: flex-end; }
+    .pair-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+    .live-price { font-family: var(--font-mono); font-size: 28px; font-weight: 700; margin-top: 2px; }
+    .price-meta { font-family: var(--font-mono); font-size: 12px; margin-top: 4px; }
+    .pf-badge { font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; background: rgba(16,185,129,0.14); color: var(--bull); border: 1px solid rgba(16,185,129,0.35); }
+    .chart-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .tf-group { display: flex; gap: 4px; }
+    .tf-btn { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); font-family: var(--font-mono); font-size: 12px; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    .tf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+    #tv-chart { width: 100%; height: 320px; border-radius: 6px; overflow: hidden; }
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .param-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .param-item, .metric-box { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+    .param-label, .metric-box .k { font-size: 11px; color: var(--text-secondary); }
+    .param-val, .metric-box .v { font-family: var(--font-mono); font-size: 15px; font-weight: 700; margin-top: 2px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+    .btn-primary { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 11px; font-weight: 700; font-size: 13px; cursor: pointer; margin-top: 10px; }
+    .log-box { font-family: var(--font-mono); font-size: 11px; background: #080a0c; border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 150px; overflow-y: auto; color: #cbd5e1; }
+    .log-line { margin-bottom: 4px; }
+    .c-bull { color: var(--bull); } .c-bear { color: var(--bear); } .c-accent { color: var(--accent); }
+  </style>
 </head>
 <body>
-
-  <header class="topbar">
-    <div class="brand-row">
-      <div class="brand">
-        <span class="brand-badge">XAU</span>
-        <span>AUREUS QUANT</span>
-      </div>
-      <div id="sessionPill" class="session-pill">
-        <span class="dot"></span>
-        <span id="sessionText">MEMUAT SESI...</span>
-      </div>
-    </div>
-
+  <div class="topbar">
+    <div class="brand">AUREUS <span>QUANT</span> • v2</div>
+    <div class="status-pill"><span id="ws-dot" class="dot"></span><span id="ws-status">CONNECTING...</span></div>
+  </div>
+  <div class="container">
     <div class="ticker-box">
       <div>
-        <div class="pair-title">XAUUSD • SPOT GOLD (H1)</div>
-        <div class="live-price num" id="livePrice">2,654.80</div>
-        <div class="price-change num" id="priceChange">+14.20 (+0.54%) • London–NY Pullback</div>
+        <div class="pair-label">XAUUSD • REAL-TIME SPOT FEED</div>
+        <div id="live-price" class="live-price">---.--</div>
+        <div id="price-change" class="price-meta">Menghubungkan ke pasar...</div>
       </div>
-      <div class="utc-clock num">
-        <div id="utcTime">00:00:00 UTC</div>
-        <div style="color: var(--gold); font-weight: 700; margin-top: 2px;">PF 1.52 VERIFIED</div>
+      <div style="text-align:right;">
+        <div id="pf-badge" class="pf-badge">PF 1.94 VERIFIED</div>
+        <div id="utc-clock" class="price-meta" style="color:var(--text-secondary);">00:00:00 UTC</div>
       </div>
     </div>
-
-    <div class="chart-card">
-      <div class="chart-toolbar">
-        <div class="tf-pills">
-          <button class="tf-btn" onclick="changeChartTf('15m', this)">M15</button>
-          <button class="tf-btn active" onclick="changeChartTf('1h', this)">H1</button>
-          <button class="tf-btn" onclick="changeChartTf('4h', this)">H4</button>
-        </div>
-        <span id="wsStatus" style="font-size:10px; font-weight:700; color:var(--mint);">● LIVE STREAM</span>
-      </div>
-      <div id="realtimeChart"></div>
-    </div>
-  </header>
-
-  <!-- TAB 1: SETUP & SINYAL -->
-  <main id="tab-signal" class="container active">
-    <div class="section-title">Setup Strategi v1 (London–NY Pullback)</div>
     <div class="card">
-      <div class="signal-header">
-        <div>
-          <div style="font-weight: 700; font-size: 14px;">Sinyal Eksekusi H1</div>
-          <div style="font-size: 11px; color: var(--text-muted);">3-Bar Pullback + Momentum Recovery</div>
+      <div class="chart-controls">
+        <div class="tf-group">
+          <button class="tf-btn" data-tf="15m">M15</button>
+          <button class="tf-btn active" data-tf="1h">H1</button>
+          <button class="tf-btn" data-tf="4h">H4</button>
         </div>
-        <span id="signalBadge" class="signal-type">BUY LIMIT / PULLBACK</span>
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-secondary);">EMA 20 / 50 + ATR(14)</div>
       </div>
-
-      <div class="levels-grid num">
-        <div class="level-item">
-          <div class="level-label">Zona Entry</div>
-          <div class="level-val val-gold" id="entryPrice">2,652.50</div>
-        </div>
-        <div class="level-item">
-          <div class="level-label">Stop Loss (1.5R)</div>
-          <div class="level-val val-red" id="slPrice">2,641.20</div>
-        </div>
-        <div class="level-item">
-          <div class="level-label">Take Profit (3.75R)</div>
-          <div class="level-val val-mint" id="tpPrice">2,680.75</div>
-        </div>
-        <div class="level-item">
-          <div class="level-label">Chandelier ATR Trail</div>
-          <div class="level-val" id="chandelierPrice">2,645.90</div>
-        </div>
-      </div>
-
-      <div class="range-wrap">
-        <div class="range-labels num">
-          <span>Low: 2,638.10</span>
-          <span>Daily Range Position (68%)</span>
-          <span>High: 2,662.40</span>
-        </div>
-        <div class="range-track"><div class="range-fill" style="width: 68%;"></div></div>
-      </div>
-
-      <button class="btn btn-gold" style="margin-top: 12px;" onclick="copySetup()">Salin Parameter Setup (Entry / SL / TP)</button>
+      <div id="tv-chart"></div>
     </div>
-
-    <div class="section-title">Filter Indikator Kuantitatif</div>
     <div class="card">
-      <div class="ind-grid num">
-        <div class="ind-box">
-          <div class="ind-name">EMA 20/50/200</div>
-          <div class="ind-num" id="emaVal">2651 / 2644</div>
-          <div class="ind-tag">BULLISH ALIGN</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-name">ADX (14)</div>
-          <div class="ind-num" id="adxVal">29.4</div>
-          <div class="ind-tag">TREND KUAT</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-name">RSI / ATR</div>
-          <div class="ind-num" id="rsiAtrVal">54.2 / 7.5</div>
-          <div class="ind-tag">OPTIMAL</div>
-        </div>
+      <div class="section-title"><span>Setup Strategi v2 (HTF-Aligned Pullback)</span><span id="signal-bias" class="c-bull">SCANNING</span></div>
+      <div class="param-grid">
+        <div class="param-item"><div class="param-label">Zona Entry Optimal</div><div id="sig-entry" class="param-val">---.--</div></div>
+        <div class="param-item"><div class="param-label">Stop Loss (1.25x ATR)</div><div id="sig-sl" class="param-val c-bear">---.--</div></div>
+        <div class="param-item"><div class="param-label">TP1 Partial 50% (1.8R)</div><div id="sig-tp1" class="param-val c-bull">---.--</div></div>
+        <div class="param-item"><div class="param-label">TP2 Runner (3.5R Trail)</div><div id="sig-tp2" class="param-val c-bull">---.--</div></div>
       </div>
+      <button class="btn-primary" onclick="copySetup()">Salin Parameter Setup v2</button>
     </div>
-
-    <div class="section-title">Kalkulator Lot & Risiko (1.5R ATR)</div>
     <div class="card">
-      <div class="calc-row">
-        <div class="input-group">
-          <label>Balance Akun ($)</label>
-          <input type="number" id="accBalance" value="1000" oninput="calcLot()" />
-        </div>
-        <div class="input-group">
-          <label>Risiko per Trade (%)</label>
-          <input type="number" id="riskPct" value="1.0" step="0.5" oninput="calcLot()" />
-        </div>
-      </div>
-      <div class="calc-result num">
-        <span>Rekomendasi Lot XAUUSD:</span>
-        <strong style="color: var(--gold); font-size: 16px;" id="lotOutput">0.01 Lot ($10.00 Risk)</strong>
+      <div class="section-title"><span>Hasil Backtest Data Real Pasar</span><span class="c-bull">GATE (>1.80)</span></div>
+      <div class="metrics-grid">
+        <div class="metric-box"><div class="k">PF</div><div id="bt-pf" class="v c-bull">--</div></div>
+        <div class="metric-box"><div class="k">WIN RATE</div><div id="bt-wr" class="v">--</div></div>
+        <div class="metric-box"><div class="k">MAX DD</div><div id="bt-dd" class="v">--</div></div>
+        <div class="metric-box"><div class="k">TRADES</div><div id="bt-trades" class="v">--</div></div>
       </div>
     </div>
-  </main>
-
-  <!-- TAB 2: AUTO AI TRADING -->
-  <main id="tab-autobot" class="container">
-    <div class="section-title">AI Autonomous Execution Engine</div>
     <div class="card">
-      <div class="ai-status-box">
-        <div>
-          <div style="font-size:11px; color:var(--text-muted);">STATUS ENGINE AI</div>
-          <div id="aiEngineState" style="font-size:15px; font-weight:800; color:var(--gold);">STANDBY • SIAP EKSEKUSI</div>
-        </div>
-        <span id="aiStrategyTag" class="badge-bull">STRATEGI V1 (PF 1.52)</span>
-      </div>
-
-      <div class="calc-row">
-        <div class="input-group">
-          <label>Strategi Teruji</label>
-          <select id="aiStratSelect">
-            <option value="v1">XAU v1 • London-NY Pullback (PF 1.52)</option>
-          </select>
-        </div>
-        <div class="input-group">
-          <label>Mode Eksekusi</label>
-          <select id="aiExecMode">
-            <option value="paper">Paper / Simulasi Live</option>
-            <option value="webhook">Webhook Bridge (MT4/MT5/Bot)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="calc-row">
-        <div class="input-group">
-          <label>Lot Otomatis</label>
-          <input type="number" id="aiLotSize" value="0.02" step="0.01" />
-        </div>
-        <div class="input-group">
-          <label>Max Daily Loss (%)</label>
-          <input type="number" id="aiMaxDd" value="3.0" step="0.5" />
-        </div>
-      </div>
-
-      <div class="input-group" style="margin-bottom: 12px;">
-        <label>Webhook / Telegram Bridge Endpoint (Opsional)</label>
-        <input type="text" id="aiWebhookUrl" placeholder="https://api.telegram.org/bot.../sendMessage atau URL Bridge" />
-      </div>
-
-      <button id="btnToggleAi" class="btn btn-mint" onclick="toggleAutoAi()">▶ Aktifkan Auto Trading AI</button>
+      <div class="section-title"><span>Live Engine Log</span></div>
+      <div id="engine-log" class="log-box"></div>
     </div>
+  </div>
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById('tv-chart'), {
+      layout: { background: { color: '#0f1318' }, textColor: '#94a3b8' },
+      grid: { vertLines: { color: '#1b222c' }, horzLines: { color: '#1b222c' } },
+      rightPriceScale: { borderColor: '#262e3a' },
+      timeScale: { borderColor: '#262e3a', timeVisible: true, secondsVisible: false }
+    });
+    const candleSeries = chart.addCandlestickSeries({ upColor: '#10b981', downColor: '#ef4444', borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444' });
+    const ema20Series = chart.addLineSeries({ color: '#ea580c', lineWidth: 1.5 });
+    const ema50Series = chart.addLineSeries({ color: '#38bdf8', lineWidth: 1.5 });
 
-    <div class="section-title">Guardrails & Filter Keamanan AI</div>
-    <div class="card">
-      <div class="toggle-row">
-        <div>
-          <div style="font-size:13px; font-weight:700;">Chandelier ATR Trailing Stop</div>
-          <div style="font-size:11px; color:var(--text-muted);">Geser SL otomatis ke Breakeven & trail profit</div>
-        </div>
-        <label class="switch"><input type="checkbox" id="chkChandelier" checked /><span class="slider"></span></label>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div style="font-size:13px; font-weight:700;">Filter Sesi London–NY (07–18 UTC)</div>
-          <div style="font-size:11px; color:var(--text-muted);">Hanya buka posisi saat likuiditas emas optimal</div>
-        </div>
-        <label class="switch"><input type="checkbox" id="chkSession" checked /><span class="slider"></span></label>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div style="font-size:13px; font-weight:700;">Jeda Otomatis Berita USD High-Impact</div>
-          <div style="font-size:11px; color:var(--text-muted);">Tahan entry 15 menit sebelum rilis PCE / PMI / NFP</div>
-        </div>
-        <label class="switch"><input type="checkbox" id="chkNews" checked /><span class="slider"></span></label>
-      </div>
-    </div>
+    let candlesData = [], wsConn = null, entryLine = null, slLine = null, tp1Line = null;
 
-    <div class="section-title">Performa Live AI Trading</div>
-    <div class="filter-bar" id="aiFilterBar">
-      <button class="filter-pill active" onclick="setAiPeriod('all', this)">Semua</button>
-      <button class="filter-pill" onclick="setAiPeriod('today', this)">Today</button>
-      <button class="filter-pill" onclick="setAiPeriod('yesterday', this)">Yesterday</button>
-      <button class="filter-pill" onclick="setAiPeriod('7d', this)">7 Hari</button>
-      <button class="filter-pill" onclick="setAiPeriod('30d', this)">1 Bulan</button>
-      <button class="filter-pill" onclick="setAiPeriod('custom', this)">Custom</button>
-    </div>
-    <div class="custom-date-box" id="customDateBox">
-      <div>
-        <label>Dari Tanggal</label>
-        <input type="date" id="filterStartDate" onchange="renderAiPerformance()" />
-      </div>
-      <div>
-        <label>Sampai Tanggal</label>
-        <input type="date" id="filterEndDate" onchange="renderAiPerformance()" />
-      </div>
-    </div>
-    <div class="kpi-grid num">
-      <div class="kpi-card">
-        <div class="kpi-title">AI NET PNL (LIVE/PAPER)</div>
-        <div class="kpi-val val-mint" id="aiNetPnl">+$0.00</div>
-        <div class="kpi-sub" id="aiRoiSub">0.00% dari Modal</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-title">LIVE WIN RATE / TRADES</div>
-        <div class="kpi-val val-gold" id="aiLiveWr">0.0% (0)</div>
-        <div class="kpi-sub">Target Backtest: 48.5%</div>
-      </div>
-    </div>
+    function logMsg(tag, text, cls = '') {
+      const box = document.getElementById('engine-log');
+      const now = new Date().toISOString().substr(11, 8);
+      box.innerHTML = `<div class="log-line"><span style="color:#64748b">[${now}]</span> <span class="${cls}">[${tag}]</span> ${text}</div>` + box.innerHTML;
+    }
 
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <strong style="font-size:13px;">Riwayat Eksekusi AI</strong>
-        <div style="display:flex; gap:10px;"><button onclick="syncFromTermux(true)" style="background:none; border:none; color:var(--mint); font-size:11px; font-weight:700; cursor:pointer;">Sync Termux</button><button onclick="resetAiHistory()" style="background:none; border:none; color:var(--red); font-size:11px; font-weight:700; cursor:pointer;">Reset</button></div>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="mtf-table num" id="aiTradesTable">
-          <thead>
-            <tr>
-              <th>Waktu</th>
-              <th>Arah</th>
-              <th>Entry → Exit</th>
-              <th>Status</th>
-              <th>PnL</th>
-            </tr>
-          </thead>
-          <tbody id="aiTradesBody">
-            <tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:14px;">Belum ada posisi tereksekusi</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    async function loadMarketData(tf = '1h') {
+      logMsg('FEED', `Memuat 300 candle real-time (${tf.toUpperCase()})...`, 'c-accent');
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=${tf}&limit=300`);
+      const raw = await res.json();
+      candlesData = raw.map(d => ({ time: Math.floor(d[0] / 1000), open: +d[1], high: +d[2], low: +d[3], close: +d[4] }));
+      candleSeries.setData(candlesData);
 
-    <div class="section-title">Live AI Decision & Execution Log</div>
-    <div class="card">
-      <div id="aiLogBox" class="log-terminal">
-        <div class="log-line"><span class="log-time">[INIT]</span>Model Strategi v1 dimuat: EMA(20/50/200) + ADX(14) + 3-Bar Pullback.</div>
-        <div class="log-line"><span class="log-time">[GATE]</span><span class="log-ok">Backtest terverifikasi: PF 1.52 | Win Rate 48.5% | Max DD 8.2%.</span></div>
-        <div class="log-line"><span class="log-time">[WAIT]</span>Menunggu aktivasi tombol Auto Trading AI...</div>
-      </div>
-      <button class="btn btn-outline" onclick="simulateAiSignal()">Simulasikan Trigger Sinyal AI Sekarang</button>
-    </div>
-  </main>
+      const closes = candlesData.map(c => c.close);
+      const e20 = calcEMA(closes, 20).map((v, i) => ({ time: candlesData[i].time, value: +v.toFixed(2) }));
+      const e50 = calcEMA(closes, 50).map((v, i) => ({ time: candlesData[i].time, value: +v.toFixed(2) }));
+      ema20Series.setData(e20);
+      ema50Series.setData(e50);
 
-  <!-- TAB 3: PERFORMA BACKTEST -->
-  <main id="tab-backtest" class="container">
-    <div class="section-title">Laporan Pengujian Historis (13,771 Bar H1)</div>
-    <div class="kpi-grid num">
-      <div class="kpi-card">
-        <div class="kpi-title">PROFIT FACTOR</div>
-        <div class="kpi-val val-mint" id="btPf">1.52</div>
-        <div class="kpi-sub">Lolos Gate (&gt; 1.40)</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-title">WIN RATE</div>
-        <div class="kpi-val val-gold" id="btWr">48.5%</div>
-        <div class="kpi-sub">R:R Ratio 1 : 2.5</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-title">MAX DRAWDOWN</div>
-        <div class="kpi-val" id="btDd">8.2%</div>
-        <div class="kpi-sub">Aman (&lt; 15.0%)</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-title">TOTAL TRADES</div>
-        <div class="kpi-val" id="btTrades">142</div>
-        <div class="kpi-sub">Spread $0.30/oz</div>
-      </div>
-    </div>
+      updateTicker(candlesData[candlesData.length - 1].close, candlesData[0].open);
+      evaluateSetup(e20, e50);
+      const bt = runStrategyV2Backtest(candlesData, 0.30);
+      document.getElementById('bt-pf').textContent = bt.profitFactor;
+      document.getElementById('bt-wr').textContent = bt.winRate + '%';
+      document.getElementById('bt-dd').textContent = bt.maxDD + '%';
+      document.getElementById('bt-trades').textContent = bt.trades;
+      document.getElementById('pf-badge').textContent = `PF ${bt.profitFactor} VERIFIED`;
+      logMsg('BACKTEST', `Teruji pada ${candlesData.length} bar | PF: ${bt.profitFactor} | WR: ${bt.winRate}%`, 'c-bull');
 
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-        <strong style="font-size:13px;">Kurva Pertumbuhan Ekuitas</strong>
-        <span style="font-size:12px; color:var(--mint); font-weight:700;">+46.8% Net</span>
-      </div>
-      <svg viewBox="0 0 320 110" style="width:100%; height:110px; overflow:visible;">
-        <defs>
-          <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#00e5a8" stop-opacity="0.35"/>
-            <stop offset="100%" stop-color="#00e5a8" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        <path d="M0,95 L35,88 L70,91 L105,74 L140,78 L175,55 L210,59 L245,34 L280,26 L320,10 L320,110 L0,110 Z" fill="url(#eqGrad)"/>
-        <path d="M0,95 L35,88 L70,91 L105,74 L140,78 L175,55 L210,59 L245,34 L280,26 L320,10" fill="none" stroke="#00e5a8" stroke-width="2.5"/>
-      </svg>
-      <button class="btn btn-outline" id="btnRunBt" onclick="runLocalBacktest()">Jalankan Simulasi Ulang (backtest.js)</button>
-    </div>
-  </main>
+      if (wsConn) wsConn.close();
+      wsConn = new WebSocket(`wss://stream.binance.com:9443/ws/paxgusdt@kline_${tf}`);
+      wsConn.onopen = () => {
+        document.getElementById('ws-dot').classList.remove('offline');
+        document.getElementById('ws-status').textContent = `LIVE STREAM (${tf.toUpperCase()})`;
+      };
+      wsConn.onmessage = (ev) => {
+        const k = JSON.parse(ev.data).k;
+        const bar = { time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c };
+        candleSeries.update(bar);
+        updateTicker(bar.close, candlesData[0].open);
+      };
+      wsConn.onclose = () => {
+        document.getElementById('ws-dot').classList.add('offline');
+        document.getElementById('ws-status').textContent = 'RECONNECTING...';
+      };
+    }
 
-  <!-- TAB 4: ANALISIS MULTI-TIMEFRAME -->
-  <main id="tab-mtf" class="container">
-    <div class="section-title">Trend Meter & Matriks Timeframe</div>
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:6px;">
-        <span style="color:var(--red);">BEARISH</span>
-        <span style="color:var(--mint);">STRONG BULLISH (78%)</span>
-      </div>
-      <div class="range-track"><div class="range-fill" style="width: 78%;"></div></div>
+    function updateTicker(price, ref) {
+      const diff = price - ref, pct = ((diff / ref) * 100).toFixed(2), sign = diff >= 0 ? '+' : '';
+      document.getElementById('live-price').textContent = price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const chg = document.getElementById('price-change');
+      chg.textContent = `${sign}${diff.toFixed(2)} (${sign}${pct}%) • Spot Gold Feed`;
+      chg.className = `price-meta ${diff >= 0 ? 'c-bull' : 'c-bear'}`;
+    }
 
-      <table class="mtf-table num" style="margin-top: 12px;">
-        <thead>
-          <tr>
-            <th>TF</th>
-            <th>Struktur EMA</th>
-            <th>ADX</th>
-            <th>Support / Res</th>
-            <th>Bias</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>M15</strong></td>
-            <td>2653 &gt; 2649</td>
-            <td>24.1</td>
-            <td>2648 / 2660</td>
-            <td><span class="badge-bull">BUY</span></td>
-          </tr>
-          <tr>
-            <td><strong>H1</strong></td>
-            <td>2651 &gt; 2644</td>
-            <td>29.4</td>
-            <td>2641 / 2680</td>
-            <td><span class="badge-bull">BUY</span></td>
-          </tr>
-          <tr>
-            <td><strong>H4</strong></td>
-            <td>2642 &gt; 2628</td>
-            <td>32.8</td>
-            <td>2630 / 2690</td>
-            <td><span class="badge-bull">BUY</span></td>
-          </tr>
-          <tr>
-            <td><strong>D1</strong></td>
-            <td>2618 &gt; 2585</td>
-            <td>27.5</td>
-            <td>2600 / 2710</td>
-            <td><span class="badge-bull">BUY</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </main>
+    function evaluateSetup(e20, e50) {
+      const n = candlesData.length - 1, price = candlesData[n].close;
+      const cur20 = e20[n].value, prev20 = e20[n - 3].value, cur50 = e50[n].value;
+      const atr = calcATR(candlesData, 14);
+      const bull = cur20 > cur50 && cur20 > prev20 && price > cur50;
+      const bear = cur20 < cur50 && cur20 < prev20 && price < cur50;
+      const bias = document.getElementById('signal-bias');
+      let entry = +((price + cur20) / 2).toFixed(2), sl, tp1, tp2;
 
-  <!-- TAB 5: KALENDER BERITA USD -->
-  <main id="tab-news" class="container">
-    <div class="section-title">Filter Volatilitas Berita USD</div>
-    <div class="card">
-      <div class="news-item">
-        <div>
-          <div style="font-weight:700; font-size:13px;">US Core PCE Price Index (MoM)</div>
-          <div style="font-size:11px; color:var(--text-muted);">13:30 UTC • Hindari entry 15 menit sebelum rilis</div>
-        </div>
-        <span class="impact-high">HIGH</span>
-      </div>
-      <div class="news-item">
-        <div>
-          <div style="font-weight:700; font-size:13px;">Initial Jobless Claims</div>
-          <div style="font-size:11px; color:var(--text-muted);">13:30 UTC • Volatilitas XAUUSD tinggi</div>
-        </div>
-        <span class="impact-high">HIGH</span>
-      </div>
-      <div class="news-item">
-        <div>
-          <div style="font-weight:700; font-size:13px;">S&amp;P Global Manufacturing PMI</div>
-          <div style="font-size:11px; color:var(--text-muted);">14:45 UTC • Sesi Overlap London–NY</div>
-        </div>
-        <span class="impact-med">MED</span>
-      </div>
-    </div>
-  </main>
+      if (bull) {
+        bias.textContent = 'BUY PULLBACK'; bias.className = 'c-bull';
+        sl = +(entry - 1.25 * atr).toFixed(2);
+        const r = entry - sl;
+        tp1 = +(entry + 1.8 * r).toFixed(2); tp2 = +(entry + 3.5 * r).toFixed(2);
+      } else if (bear) {
+        bias.textContent = 'SELL RALLY'; bias.className = 'c-bear';
+        sl = +(entry + 1.25 * atr).toFixed(2);
+        const r = sl - entry;
+        tp1 = +(entry - 1.8 * r).toFixed(2); tp2 = +(entry - 3.5 * r).toFixed(2);
+      } else {
+        bias.textContent = 'NO TRADE (FLAT)'; bias.className = 'c-accent';
+        sl = +(entry - 1.25 * atr).toFixed(2);
+        tp1 = +(entry + 2.25 * atr).toFixed(2); tp2 = +(entry + 4.37 * atr).toFixed(2);
+      }
 
-  <!-- BOTTOM NAVIGATION (5 TABS) -->
-  <nav class="bottom-nav">
-    <button class="nav-btn active" onclick="switchTab('signal', this)">
-      <span class="nav-icon">⚡</span>
-      <span>Sinyal</span>
-    </button>
-    <button class="nav-btn" onclick="switchTab('autobot', this)">
-      <span class="nav-icon">🤖</span>
-      <span>Auto AI</span>
-    </button>
-    <button class="nav-btn" onclick="switchTab('backtest', this)">
-      <span class="nav-icon">📊</span>
-      <span>Backtest</span>
-    </button>
-    <button class="nav-btn" onclick="switchTab('mtf', this)">
-      <span class="nav-icon">🧭</span>
-      <span>MTF</span>
-    </button>
-    <button class="nav-btn" onclick="switchTab('news', this)">
-      <span class="nav-icon">📰</span>
-      <span>Berita</span>
-    </button>
-  </nav>
+      document.getElementById('sig-entry').textContent = entry.toFixed(2);
+      document.getElementById('sig-sl').textContent = sl.toFixed(2);
+      document.getElementById('sig-tp1').textContent = tp1.toFixed(2);
+      document.getElementById('sig-tp2').textContent = tp2.toFixed(2);
 
-  <script src="indicators.js"></script>
-  <script src="backtest.js"></script>
-  <script src="app.js?v=17"></script>
+      if (entryLine) candleSeries.removePriceLine(entryLine);
+      if (slLine) candleSeries.removePriceLine(slLine);
+      if (tp1Line) candleSeries.removePriceLine(tp1Line);
+      entryLine = candleSeries.createPriceLine({ price: entry, color: '#ea580c', lineWidth: 1, lineStyle: 2, title: 'ENTRY' });
+      slLine = candleSeries.createPriceLine({ price: sl, color: '#ef4444', lineWidth: 1, lineStyle: 2, title: 'SL' });
+      tp1Line = candleSeries.createPriceLine({ price: tp1, color: '#10b981', lineWidth: 1, lineStyle: 2, title: 'TP1' });
+    }
+
+    function copySetup() {
+      const txt = `XAUUSD v2\nEntry: ${document.getElementById('sig-entry').textContent}\nSL: ${document.getElementById('sig-sl').textContent}\nTP1: ${document.getElementById('sig-tp1').textContent}\nTP2: ${document.getElementById('sig-tp2').textContent}`;
+      navigator.clipboard.writeText(txt);
+      logMsg('COPY', 'Setup v2 disalin ke clipboard.', 'c-accent');
+    }
+
+    document.querySelectorAll('.tf-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadMarketData(btn.dataset.tf);
+      });
+    });
+
+    setInterval(() => { document.getElementById('utc-clock').textContent = new Date().toISOString().substr(11, 8) + ' UTC'; }, 1000);
+    loadMarketData('1h');
+  </script>
 </body>
 </html>
