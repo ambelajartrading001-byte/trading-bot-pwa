@@ -1,5 +1,4 @@
 (function () {
-  // Definisi Sesi Pasar dalam UTC (jam desimal)
   const SESSIONS = [
     { id: 'ASIA', name: 'ASIA / TOKYO', city: 'TOKYO', utcStart: 0, utcEnd: 9, color: '#22c55e' },
     { id: 'LONDON', name: 'LONDON SESSION', city: 'LONDON', utcStart: 7, utcEnd: 16, color: '#38bdf8' },
@@ -7,8 +6,8 @@
   ];
 
   let selectedSessionId = 'AUTO';
+  let activeTab = 'HOME'; // 'HOME' | 'CHART'
 
-  // Konversi jam UTC ke jam lokal perangkat (0 - 24)
   function utcToLocalHour(utcH) {
     const offsetHours = -new Date().getTimezoneOffset() / 60;
     return (utcH + offsetHours + 24) % 24;
@@ -24,7 +23,6 @@
   }
 
   function polarToCartesian(cx, cy, r, hour24) {
-    // 00:00 di atas (-90 deg), searah jarum jam
     const angleDeg = (hour24 / 24) * 360 - 90;
     const rad = (angleDeg * Math.PI) / 180;
     return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
@@ -44,6 +42,7 @@
     const style = document.createElement('style');
     style.id = 'traxa-ui-style';
     style.textContent = `
+      .aq-hidden-view { display: none !important; }
       .aq-session-card {
         background: radial-gradient(circle at 50% 45%, rgba(234,179,8,0.08), rgba(10,12,16,0.96) 72%);
         border: 1px solid rgba(255,255,255,0.08);
@@ -70,6 +69,22 @@
       .aq-status-title { font-size: 13px; font-weight: 800; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 6px; }
       .aq-status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
       .aq-status-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+      .aq-chart-cta {
+        margin-top: 14px; width: 100%; padding: 11px 14px; border-radius: 14px;
+        background: linear-gradient(135deg, rgba(234,179,8,0.2), rgba(234,179,8,0.08));
+        border: 1px solid rgba(234,179,8,0.45); color: #facc15;
+        font-size: 12px; font-weight: 800; letter-spacing: 0.5px; cursor: pointer;
+      }
+      #aq-chart-standalone-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; margin-bottom: 8px;
+        background: rgba(15, 23, 42, 0.9); border-bottom: 1px solid rgba(255,255,255,0.08);
+        color: #f8fafc; font-family: system-ui, sans-serif;
+      }
+      .aq-back-btn {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+        color: #facc15; padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+      }
 
       /* Floating Radial Menu & Bottom Bar */
       body { padding-bottom: 86px !important; }
@@ -87,7 +102,7 @@
       }
       .aq-nav-item {
         display: flex; flex-direction: column; align-items: center; gap: 3px;
-        color: #64748b; font-size: 10px; font-weight: 700; background: none; border: none; cursor: pointer; width: 64px;
+        color: #64748b; font-size: 10px; font-weight: 700; background: none; border: none; cursor: pointer; width: 68px;
       }
       .aq-nav-item.active { color: #eab308; }
       .aq-fab-holder { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; margin-top: -26px; }
@@ -126,6 +141,49 @@
     document.head.appendChild(style);
   }
 
+  function isolateChartWorkspace() {
+    // Bungkus seluruh konten grafik/sinyal bawaan ke dalam container khusus agar terpisah dari Beranda
+    if (document.getElementById('aq-chart-workspace')) return;
+    const workspace = document.createElement('div');
+    workspace.id = 'aq-chart-workspace';
+    workspace.className = 'aq-hidden-view';
+
+    const header = document.createElement('div');
+    header.id = 'aq-chart-standalone-header';
+    header.innerHTML = `
+      <button class="aq-back-btn" id="aq-btn-back-home">← Beranda</button>
+      <span style="font-weight:800;font-size:13px;letter-spacing:0.5px;color:#eab308;">XAUUSD • SMC SIGNAL & CHART</span>
+      <span style="font-size:11px;color:#22c55e;font-weight:700;">● LIVE</span>
+    `;
+    workspace.appendChild(header);
+
+    const existingNodes = Array.from(document.body.children).filter(
+      (el) => !['SCRIPT', 'STYLE', 'LINK'].includes(el.tagName) && !el.id.startsWith('aq-')
+    );
+    existingNodes.forEach((el) => workspace.appendChild(el));
+    document.body.insertBefore(workspace, document.body.firstChild);
+
+    document.getElementById('aq-btn-back-home').onclick = () => switchView('HOME');
+  }
+
+  function switchView(view) {
+    activeTab = view;
+    const homeCard = document.getElementById('aq-session-card');
+    const chartWork = document.getElementById('aq-chart-workspace');
+    if (homeCard) homeCard.classList.toggle('aq-hidden-view', view !== 'HOME');
+    if (chartWork) chartWork.classList.toggle('aq-hidden-view', view !== 'CHART');
+
+    document.querySelectorAll('.aq-nav-item').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    // Picu resize event agar canvas grafik SMC langsung menyesuaikan ukuran layar saat dibuka
+    if (view === 'CHART') {
+      window.dispatchEvent(new Event('resize'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
   function buildSessionCard() {
     if (document.getElementById('aq-session-card')) return;
     const card = document.createElement('div');
@@ -141,9 +199,10 @@
       <div class="aq-session-pills" id="aq-session-pills"></div>
       <div class="aq-status-title" id="aq-status-title"></div>
       <div class="aq-status-sub" id="aq-status-sub"></div>
+      <button class="aq-chart-cta" id="aq-open-chart-btn">📈 BUKA GRAFIK & SINYAL XAUUSD →</button>
     `;
-    const target = document.querySelector('main, .container, #app') || document.body;
-    target.insertBefore(card, target.firstChild);
+    document.body.insertBefore(card, document.body.firstChild);
+    document.getElementById('aq-open-chart-btn').onclick = () => switchView('CHART');
 
     const pillsWrap = document.getElementById('aq-session-pills');
     [{ id: 'AUTO', name: 'LIVE', color: '#eab308' }, ...SESSIONS].forEach((s) => {
@@ -178,7 +237,6 @@
       <circle cx="${cx}" cy="${cy}" r="82" fill="none" stroke="rgba(234,179,8,0.14)" stroke-width="1" stroke-dasharray="3 5"/>
     `;
 
-    // Titik tick 24 jam & label 00, 06, 12, 18
     for (let i = 0; i < 24; i++) {
       const p1 = polarToCartesian(cx, cy, rOuter - 4, i);
       const p2 = polarToCartesian(cx, cy, rOuter + 4, i);
@@ -189,7 +247,6 @@
       }
     }
 
-    // Jaringan konstelasi di bagian dalam
     const pts = [0, 3, 6, 9, 12, 15, 18, 21].map((hr, idx) => polarToCartesian(cx, cy, idx % 2 === 0 ? 64 : 46, hr));
     pts.forEach((p, idx) => {
       const next = pts[(idx + 1) % pts.length];
@@ -199,7 +256,6 @@
       html += `<circle cx="${p.x}" cy="${p.y}" r="2" fill="#eab308" opacity="0.65"/>`;
     });
 
-    // Gambar busur sesi (Asia, London, NY) pada radius bertingkat agar overlap terlihat jelas
     let activeList = [];
     SESSIONS.forEach((s, idx) => {
       const startL = utcToLocalHour(s.utcStart);
@@ -221,7 +277,6 @@
       }
     });
 
-    // Penanda posisi waktu user saat ini ("YOU")
     const youPos = polarToCartesian(cx, cy, rOuter, nowHourLocal);
     const youLbl = polarToCartesian(cx, cy, rOuter - 24, nowHourLocal);
     html += `
@@ -232,7 +287,6 @@
     `;
     svg.innerHTML = html;
 
-    // Update teks info sesi di bawah dial
     const targetSession = selectedSessionId === 'AUTO'
       ? (activeList[0] || { ...SESSIONS[0], startL: utcToLocalHour(SESSIONS[0].utcStart), endL: utcToLocalHour(SESSIONS[0].utcEnd), isOpen: false })
       : (() => {
@@ -264,11 +318,11 @@
     backdrop.className = 'aq-backdrop';
 
     const radialActions = [
-      { icon: '📊', label: 'P&L & Backtest', tx: '-98px', ty: '-88px', action: () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }) },
-      { icon: '📢', label: 'Sinyal SMC', tx: '0px', ty: '-128px', action: () => document.getElementById('aq-session-card')?.scrollIntoView({ behavior: 'smooth' }) },
-      { icon: '📰', label: 'Kalender News', tx: '98px', ty: '-88px', action: () => alert('High-Impact News Filter: Aktif (FOMC / NFP / CPI)') },
+      { icon: '📈', label: 'Grafik SMC', tx: '-98px', ty: '-88px', action: () => switchView('CHART') },
+      { icon: '📢', label: 'Sinyal Live', tx: '0px', ty: '-128px', action: () => switchView('CHART') },
+      { icon: '📊', label: 'Backtest & P&L', tx: '98px', ty: '-88px', action: () => { switchView('CHART'); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 150); } },
       { icon: '🤖', label: 'Bot Autopilot', tx: '-118px', ty: '-22px', action: () => alert('Status Agen: @Owneramrbot, @geminiamrbot & @Hermesagentambot Terhubung') },
-      { icon: '⚡', label: 'Refresh Data', tx: '118px', ty: '-22px', action: () => window.location.reload() }
+      { icon: '⚡', label: 'Sync Update', tx: '118px', ty: '-22px', action: () => window.location.reload() }
     ];
 
     const radialEls = radialActions.map((item) => {
@@ -289,18 +343,23 @@
     nav.id = 'aq-bottom-nav';
     nav.className = 'aq-bottom-nav';
     nav.innerHTML = `
-      <button class="aq-nav-item active" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span>🏠</span><span>BERANDA</span></button>
-      <button class="aq-nav-item" onclick="document.querySelector('canvas')?.scrollIntoView({behavior:'smooth'})"><span>⚡</span><span>SINYAL</span></button>
+      <button class="aq-nav-item active" data-view="HOME" id="aq-tab-home"><span>🏠</span><span>BERANDA</span></button>
+      <button class="aq-nav-item" data-view="CHART" id="aq-tab-signal"><span>⚡</span><span>SINYAL</span></button>
       <div class="aq-fab-holder">
         <span class="aq-fab-badge">+3</span>
         <button id="aq-fab-btn" class="aq-fab-btn">✦</button>
       </div>
-      <button class="aq-nav-item" onclick="document.querySelector('canvas')?.scrollIntoView({behavior:'smooth'})"><span>📈</span><span>GRAFIK</span></button>
-      <button class="aq-nav-item" onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})"><span>📋</span><span>RIWAYAT</span></button>
+      <button class="aq-nav-item" data-view="CHART" id="aq-tab-chart"><span>📈</span><span>GRAFIK</span></button>
+      <button class="aq-nav-item" data-view="HOME" id="aq-tab-session"><span>🕒</span><span>SESI</span></button>
     `;
 
     document.body.appendChild(backdrop);
     document.body.appendChild(nav);
+
+    document.getElementById('aq-tab-home').onclick = () => switchView('HOME');
+    document.getElementById('aq-tab-session').onclick = () => switchView('HOME');
+    document.getElementById('aq-tab-signal').onclick = () => switchView('CHART');
+    document.getElementById('aq-tab-chart').onclick = () => switchView('CHART');
 
     let isOpen = false;
     const fabBtn = document.getElementById('aq-fab-btn');
@@ -318,9 +377,11 @@
 
   function init() {
     injectStyles();
+    isolateChartWorkspace();
     buildSessionCard();
     buildFloatingNav();
     updateSessionDial();
+    switchView('HOME');
     setInterval(updateSessionDial, 10000);
   }
 
