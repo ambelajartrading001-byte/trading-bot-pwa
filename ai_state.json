@@ -1,11 +1,11 @@
 {
-  "updated_at": "2026-11-25 07:19:21 UTC",
-  "last_price": 3518.55,
+  "updated_at": "2026-11-25 07:19:57 UTC",
+  "last_price": 3518.4,
   "daily_pnl": 0.45,
   "open_trade": {
     "side": "BUY",
     "entry": 3518.55,
-    "sl": 3516.2,
+    "sl": 3516.9,
     "tp": 3524.44,
     "highest": 3518.55,
     "lot": 0.04,
