@@ -480,3 +480,22 @@
   border-radius: 12px;
   padding: 12px;
 }
+
+/* === SCROLLABLE FLOW OVERRIDE (NON-STICKY CHART & HEADER) === */
+#aq-signals-hub {
+  overflow-y: visible !important;
+  height: auto !important;
+}
+#aq-signals-hub .aq-sh-card {
+  position: relative !important;
+  top: auto !important;
+  z-index: 1 !important;
+}
+#aq-chart-workspace,
+#aq-chart-workspace canvas,
+.chart-container,
+.tv-lightweight-charts {
+  position: relative !important;
+  top: auto !important;
+  transform: none !important;
+}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aureus-quant-v202611250345';
+const CACHE_NAME = 'aureus-quant-v202611250348';
 const ASSETS = [
   './',
   './index.html',

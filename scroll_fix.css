@@ -1,0 +1,10 @@
+html, body {
+  overflow-y: auto !important;
+  height: auto !important;
+  min-height: 100vh;
+  -webkit-overflow-scrolling: touch;
+}
+main, #app, .tab-content, .workspace-section {
+  overflow-y: visible !important;
+  height: auto !important;
+}
