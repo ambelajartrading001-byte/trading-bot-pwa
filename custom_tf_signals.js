@@ -1,193 +1,145 @@
 (function () {
-  const PRIMARY_TFS = ['M5', 'M15', 'H1'];
-  const EXTRA_TFS = [
-    { id: 'M1', label: 'M1' },
-    { id: 'M30', label: 'M30' },
-    { id: 'H4', label: 'H4' },
-    { id: 'D1', label: 'D1' }
-  ];
+  const TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1', 'W1'];
+  let activeTF = localStorage.getItem('aq_selected_tf') || 'H1';
 
-  let activeTf = 'H1';
-
-  function injectTfStyles() {
-    if (document.getElementById('aq-tf-style')) return;
+  function injectChartStyles() {
+    if (document.getElementById('aq-clean-chart-style')) return;
     const style = document.createElement('style');
-    style.id = 'aq-tf-style';
+    style.id = 'aq-clean-chart-style';
     style.textContent = `
-      .aq-chart-inner-topbar {
+      /* Sembunyikan panel sinyal/ekstra di dalam tab Grafik agar fokus grafik saja */
+      #aq-chart-workspace .aq-signals-panel,
+      #aq-chart-workspace .signal-list,
+      #aq-chart-workspace .smc-signals-box,
+      #aq-chart-workspace #aq-signals-hub {
+        display: none !important;
+      }
+
+      #aq-chart-workspace {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 6px;
-        padding: 8px 10px;
-        background: rgba(9, 13, 22, 0.92);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px 12px 0 0;
-        font-family: system-ui, -apple-system, sans-serif;
+        flex-direction: column;
+        padding: 8px 8px 84px 8px;
+        background: #080b12;
+        min-height: calc(100vh - 64px);
+        box-sizing: border-box;
+      }
+
+      /* Bar Timeframe Horizontal M1 - W1 di atas canvas */
+      #aq-tf-bar {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 4px;
+        background: #0f1522;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 8px;
         width: 100%;
         box-sizing: border-box;
-        z-index: 20;
       }
-      .aq-tf-group {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        flex: 1;
-      }
+
       .aq-tf-btn {
-        flex: 1;
-        padding: 5px 6px;
-        border-radius: 7px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.04);
+        background: transparent;
+        border: none;
         color: #94a3b8;
         font-size: 11px;
-        font-weight: 800;
-        cursor: pointer;
-        transition: all 0.18s;
-        text-align: center;
-      }
-      .aq-tf-btn.active {
-        background: rgba(234, 179, 8, 0.2);
-        border-color: #eab308;
-        color: #facc15;
-      }
-      .aq-tf-select {
-        flex: 1.05;
-        padding: 5px 6px;
+        font-weight: 700;
+        padding: 7px 2px;
         border-radius: 7px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: #0f172a;
-        color: #cbd5e1;
-        font-size: 11px;
-        font-weight: 800;
-        outline: none;
         cursor: pointer;
         text-align: center;
+        transition: all 0.15s ease;
       }
-      .aq-tf-select.active {
-        border-color: #eab308;
-        color: #facc15;
-        background: rgba(234, 179, 8, 0.16);
+
+      .aq-tf-btn:hover {
+        color: #f8fafc;
+        background: rgba(255, 255, 255, 0.05);
       }
-      .aq-tf-mini-tag {
-        font-size: 10px;
-        font-weight: 800;
-        padding: 4px 7px;
-        border-radius: 6px;
-        white-space: nowrap;
+
+      .aq-tf-btn.active {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+      }
+
+      /* Pastikan area chart mengisi penuh layar dengan nyaman */
+      #aq-chart-workspace canvas,
+      #aq-chart-workspace .tv-lightweight-charts,
+      #aq-chart-workspace #chart-container {
+        width: 100% !important;
+        min-height: 70vh !important;
+        border-radius: 12px;
+        overflow: hidden;
       }
     `;
     document.head.appendChild(style);
   }
 
-  function getSignalBadge(tf) {
-    const map = {
-      M1:  { text: 'M1 • BUY',  bull: true },
-      M5:  { text: 'M5 • FVG',  bull: true },
-      M15: { text: 'M15 • OB',  bull: true },
-      M30: { text: 'M30 • SELL',bull: false },
-      H1:  { text: 'H1 • SMC',  bull: true },
-      H4:  { text: 'H4 • SWING',bull: true },
-      D1:  { text: 'D1 • BULL', bull: true }
-    };
-    return map[tf] || map.H1;
-  }
+  function triggerTimeframeChange(tf) {
+    activeTF = tf;
+    localStorage.setItem('aq_selected_tf', tf);
 
-  function selectTimeframe(tf) {
-    activeTf = tf;
-
-    document.querySelectorAll('.aq-tf-btn').forEach((btn) => {
+    // Update tampilan tombol aktif
+    document.querySelectorAll('.aq-tf-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tf === tf);
     });
 
-    const dd = document.getElementById('aq-tf-dropdown');
-    if (dd) {
-      const isExtra = EXTRA_TFS.some((item) => item.id === tf);
-      dd.classList.toggle('active', isExtra);
-      dd.value = isExtra ? tf : 'MORE';
+    // 1. Panggil fungsi global chart jika tersedia di app.js
+    if (typeof window.setChartTimeframe === 'function') {
+      window.setChartTimeframe(tf);
+    } else if (typeof window.changeTimeframe === 'function') {
+      window.changeTimeframe(tf);
+    } else if (typeof window.loadChartData === 'function') {
+      window.loadChartData(tf);
     }
 
-    const badge = document.getElementById('aq-tf-mini-tag');
-    if (badge) {
-      const info = getSignalBadge(tf);
-      badge.textContent = info.text;
-      badge.style.background = info.bull ? 'rgba(34,197,94,0.16)' : 'rgba(244,63,94,0.16)';
-      badge.style.color = info.bull ? '#4ade80' : '#fb7185';
-      badge.style.border = `1px solid ${info.bull ? 'rgba(74,222,128,0.35)' : 'rgba(251,113,133,0.35)'}`;
+    // 2. Sinkronkan dengan <select> bawaan jika ada
+    const nativeSelect = document.querySelector('#aq-chart-workspace select, #timeframe-select');
+    if (nativeSelect) {
+      nativeSelect.value = tf;
+      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    if (typeof window.changeTimeframe === 'function') window.changeTimeframe(tf);
-    if (typeof window.setChartTimeframe === 'function') window.setChartTimeframe(tf);
-    window.dispatchEvent(new CustomEvent('aureus:timeframeChange', { detail: { timeframe: tf } }));
+    // 3. Dispatch custom event agar listener lain ikut ter-update
+    window.dispatchEvent(new CustomEvent('aq:timeframe-changed', { detail: { timeframe: tf } }));
   }
 
-  function mountInsideChartBox() {
-    if (document.getElementById('aq-chart-inner-topbar')) return;
+  function mountTimeframeBar() {
+    const workspace = document.getElementById('aq-chart-workspace');
+    if (!workspace) return;
 
-    // Cari elemen canvas grafik atau wrapper chart di dalam workspace
-    const workspace = document.getElementById('aq-chart-workspace') || document.body;
-    const canvas = workspace.querySelector('canvas');
-    const chartBox = canvas ? canvas.parentElement : workspace.querySelector('.chart-container, #chart, [id*="chart"]');
+    injectChartStyles();
 
-    const bar = document.createElement('div');
-    bar.id = 'aq-chart-inner-topbar';
-    bar.className = 'aq-chart-inner-topbar';
+    // Hapus bar lama/dropdown lama jika ada
+    const oldDropdown = workspace.querySelector('.aq-tf-dropdown, #aq-tf-select-wrap');
+    if (oldDropdown) oldDropdown.remove();
 
-    const tfGroup = document.createElement('div');
-    tfGroup.className = 'aq-tf-group';
+    let bar = document.getElementById('aq-tf-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'aq-tf-bar';
+      workspace.insertBefore(bar, workspace.firstChild);
+    }
 
-    // 3 Timeframe utama
-    PRIMARY_TFS.forEach((tf) => {
-      const btn = document.createElement('button');
-      btn.className = 'aq-tf-btn' + (tf === activeTf ? ' active' : '');
-      btn.dataset.tf = tf;
-      btn.textContent = tf;
-      btn.onclick = () => selectTimeframe(tf);
-      tfGroup.appendChild(btn);
+    bar.innerHTML = TIMEFRAMES.map(tf => `
+      <button type="button" class="aq-tf-btn ${tf === activeTF ? 'active' : ''}" data-tf="${tf}">
+        ${tf}
+      </button>
+    `).join('');
+
+    bar.querySelectorAll('.aq-tf-btn').forEach(btn => {
+      btn.onclick = () => triggerTimeframeChange(btn.dataset.tf);
     });
+  }
 
-    // Dropdown paling kanan untuk timeframe tambahan
-    const select = document.createElement('select');
-    select.id = 'aq-tf-dropdown';
-    select.className = 'aq-tf-select';
-    select.innerHTML =
-      `<option value="MORE">TF ▾</option>` +
-      EXTRA_TFS.map((t) => `<option value="${t.id}">${t.label}</option>`).join('');
-    select.onchange = (e) => {
-      if (e.target.value !== 'MORE') {
-        selectTimeframe(e.target.value);
-      }
-    };
-    tfGroup.appendChild(select);
+  document.addEventListener('DOMContentLoaded', mountTimeframeBar);
+  if (document.readyState !== 'loading') mountTimeframeBar();
 
-    const miniTag = document.createElement('span');
-    miniTag.id = 'aq-tf-mini-tag';
-    miniTag.className = 'aq-tf-mini-tag';
-
-    bar.appendChild(tfGroup);
-    bar.appendChild(miniTag);
-
-    // Sisipkan tepat di dalam box chart di atas canvas (bukan di luar box sinyal)
-    if (chartBox && canvas) {
-      chartBox.insertBefore(bar, canvas);
-    } else if (chartBox) {
-      chartBox.insertBefore(bar, chartBox.firstChild);
-    } else {
-      workspace.appendChild(bar);
+  // Pantau jika DOM tab grafik di-render ulang secara dinamis
+  const observer = new MutationObserver(() => {
+    if (document.getElementById('aq-chart-workspace') && !document.getElementById('aq-tf-bar')) {
+      mountTimeframeBar();
     }
-
-    selectTimeframe(activeTf);
-  }
-
-  function init() {
-    injectTfStyles();
-    setTimeout(mountInsideChartBox, 150);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 })();
