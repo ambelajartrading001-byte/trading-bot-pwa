@@ -6,7 +6,7 @@
   ];
 
   let selectedSessionId = 'AUTO';
-  let activeTab = 'HOME'; // 'HOME' | 'CHART'
+  let activeTab = 'HOME'; // 'HOME' | 'CHART' | 'BOT'
 
   function utcToLocalHour(utcH) {
     const offsetHours = -new Date().getTimezoneOffset() / 60;
@@ -43,8 +43,8 @@
     style.id = 'traxa-ui-style';
     style.textContent = `
       .aq-hidden-view { display: none !important; }
-      .aq-session-card {
-        background: radial-gradient(circle at 50% 45%, rgba(234,179,8,0.08), rgba(10,12,16,0.96) 72%);
+      .aq-session-card, .aq-bot-card {
+        background: radial-gradient(circle at 50% 35%, rgba(234,179,8,0.08), rgba(10,12,16,0.96) 72%);
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 22px;
         padding: 18px 14px;
@@ -75,6 +75,30 @@
         border: 1px solid rgba(234,179,8,0.45); color: #facc15;
         font-size: 12px; font-weight: 800; letter-spacing: 0.5px; cursor: pointer;
       }
+
+      /* Bot AI Panel */
+      .aq-bot-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; text-align: left; }
+      .aq-bot-row {
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px; padding: 12px; display: flex; justify-content: space-between; align-items: center;
+      }
+      .aq-bot-name { font-size: 13px; font-weight: 800; color: #f8fafc; }
+      .aq-bot-role { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+      .aq-badge-live {
+        background: rgba(34,197,94,0.16); border: 1px solid rgba(34,197,94,0.45);
+        color: #4ade80; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
+      }
+      .aq-bot-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+      .aq-bot-btn {
+        background: rgba(234,179,8,0.14); border: 1px solid rgba(234,179,8,0.38);
+        color: #facc15; border-radius: 12px; padding: 10px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+      }
+      .aq-bot-log {
+        margin-top: 12px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 12px; padding: 10px; font-family: monospace; font-size: 11px;
+        color: #cbd5e1; text-align: left; max-height: 150px; overflow-y: auto; line-height: 1.45;
+      }
+
       #aq-chart-standalone-header {
         display: flex; align-items: center; justify-content: space-between;
         padding: 10px 14px; margin-bottom: 8px;
@@ -142,7 +166,6 @@
   }
 
   function isolateChartWorkspace() {
-    // Bungkus seluruh konten grafik/sinyal bawaan ke dalam container khusus agar terpisah dari Beranda
     if (document.getElementById('aq-chart-workspace')) return;
     const workspace = document.createElement('div');
     workspace.id = 'aq-chart-workspace';
@@ -166,18 +189,85 @@
     document.getElementById('aq-btn-back-home').onclick = () => switchView('HOME');
   }
 
+  function buildBotAiPanel() {
+    if (document.getElementById('aq-bot-panel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'aq-bot-panel';
+    panel.className = 'aq-bot-card aq-hidden-view';
+    panel.innerHTML = `
+      <div class="aq-greet">🤖 MULTI-AGENT AUTOPILOT</div>
+      <div class="aq-brand">Command Center AI</div>
+      <div class="aq-status-sub">Koordinasi Otonom Termux & Telegram</div>
+
+      <div class="aq-bot-list">
+        <div class="aq-bot-row">
+          <div>
+            <div class="aq-bot-name">👑 @Owneramrbot</div>
+            <div class="aq-bot-role">Supervisor & Audit Otomatis (Interval 30m)</div>
+          </div>
+          <span class="aq-badge-live">AUTOPILOT</span>
+        </div>
+        <div class="aq-bot-row">
+          <div>
+            <div class="aq-bot-name">🧠 @geminiamrbot</div>
+            <div class="aq-bot-role">Planner & Arsitek Kode (gemini-3.8-flash)</div>
+          </div>
+          <span class="aq-badge-live">AKTIF</span>
+        </div>
+        <div class="aq-bot-row">
+          <div>
+            <div class="aq-bot-name">⚙️ @Hermesagentambot</div>
+            <div class="aq-bot-role">Executor Termux (!sh) & Git Deployment</div>
+          </div>
+          <span class="aq-badge-live">AKTIF</span>
+        </div>
+        <div class="aq-bot-row">
+          <div>
+            <div class="aq-bot-name">📈 auto_trader.py (XAUUSD)</div>
+            <div class="aq-bot-role">SMC Strategy v2 (Net +6.8% • PF 1.94)</div>
+          </div>
+          <span class="aq-badge-live">STANDBY</span>
+        </div>
+      </div>
+
+      <div class="aq-bot-actions">
+        <button class="aq-bot-btn" id="aq-copy-audit">📋 Salin Perintah Audit</button>
+        <button class="aq-bot-btn" id="aq-open-tg">✈️ Buka Grup Telegram</button>
+      </div>
+      <div class="aq-bot-log" id="aq-bot-log">
+        [System] Multi-Agent Bridge terhubung.<br>
+        [SMC Engine] Parameter v2 (PF 1.94) tersinkronisasi.<br>
+        [PWA] Network-First Auto-Update aktif.
+      </div>
+    `;
+    document.body.insertBefore(panel, document.body.firstChild);
+
+    document.getElementById('aq-copy-audit').onclick = () => {
+      const cmd = '/autopilot audit proses auto_trader.py, worker, dan log terbaru';
+      navigator.clipboard?.writeText(cmd);
+      const logBox = document.getElementById('aq-bot-log');
+      logBox.innerHTML += `<br><span style="color:#facc15;">[Copied]</span> "${cmd}" siap ditempel di Telegram.`;
+      logBox.scrollTop = logBox.scrollHeight;
+    };
+    document.getElementById('aq-open-tg').onclick = () => {
+      window.open('https://t.me/', '_blank');
+    };
+  }
+
   function switchView(view) {
     activeTab = view;
     const homeCard = document.getElementById('aq-session-card');
     const chartWork = document.getElementById('aq-chart-workspace');
+    const botPanel = document.getElementById('aq-bot-panel');
+
     if (homeCard) homeCard.classList.toggle('aq-hidden-view', view !== 'HOME');
     if (chartWork) chartWork.classList.toggle('aq-hidden-view', view !== 'CHART');
+    if (botPanel) botPanel.classList.toggle('aq-hidden-view', view !== 'BOT');
 
     document.querySelectorAll('.aq-nav-item').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.view === view);
     });
 
-    // Picu resize event agar canvas grafik SMC langsung menyesuaikan ukuran layar saat dibuka
     if (view === 'CHART') {
       window.dispatchEvent(new Event('resize'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -318,10 +408,28 @@
     backdrop.className = 'aq-backdrop';
 
     const radialActions = [
-      { icon: '📈', label: 'Grafik SMC', tx: '-98px', ty: '-88px', action: () => switchView('CHART') },
-      { icon: '📢', label: 'Sinyal Live', tx: '0px', ty: '-128px', action: () => switchView('CHART') },
-      { icon: '📊', label: 'Backtest & P&L', tx: '98px', ty: '-88px', action: () => { switchView('CHART'); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 150); } },
-      { icon: '🤖', label: 'Bot Autopilot', tx: '-118px', ty: '-22px', action: () => alert('Status Agen: @Owneramrbot, @geminiamrbot & @Hermesagentambot Terhubung') },
+      {
+        icon: '📋',
+        label: 'Riwayat Trading',
+        tx: '-98px',
+        ty: '-88px',
+        action: () => {
+          switchView('CHART');
+          setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 150);
+        }
+      },
+      { icon: '📢', label: 'Sinyal SMC', tx: '0px', ty: '-128px', action: () => switchView('CHART') },
+      {
+        icon: '📊',
+        label: 'Backtest & P&L',
+        tx: '98px',
+        ty: '-88px',
+        action: () => {
+          switchView('CHART');
+          setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 150);
+        }
+      },
+      { icon: '🤖', label: 'Panel Bot AI', tx: '-118px', ty: '-22px', action: () => switchView('BOT') },
       { icon: '⚡', label: 'Sync Update', tx: '118px', ty: '-22px', action: () => window.location.reload() }
     ];
 
@@ -350,16 +458,16 @@
         <button id="aq-fab-btn" class="aq-fab-btn">✦</button>
       </div>
       <button class="aq-nav-item" data-view="CHART" id="aq-tab-chart"><span>📈</span><span>GRAFIK</span></button>
-      <button class="aq-nav-item" data-view="HOME" id="aq-tab-session"><span>🕒</span><span>SESI</span></button>
+      <button class="aq-nav-item" data-view="BOT" id="aq-tab-bot"><span>🤖</span><span>BOT AI</span></button>
     `;
 
     document.body.appendChild(backdrop);
     document.body.appendChild(nav);
 
     document.getElementById('aq-tab-home').onclick = () => switchView('HOME');
-    document.getElementById('aq-tab-session').onclick = () => switchView('HOME');
     document.getElementById('aq-tab-signal').onclick = () => switchView('CHART');
     document.getElementById('aq-tab-chart').onclick = () => switchView('CHART');
+    document.getElementById('aq-tab-bot').onclick = () => switchView('BOT');
 
     let isOpen = false;
     const fabBtn = document.getElementById('aq-fab-btn');
@@ -378,6 +486,7 @@
   function init() {
     injectStyles();
     isolateChartWorkspace();
+    buildBotAiPanel();
     buildSessionCard();
     buildFloatingNav();
     updateSessionDial();
