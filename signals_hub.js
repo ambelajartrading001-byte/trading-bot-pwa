@@ -318,7 +318,7 @@
     `;
   }
 
-  function findSignalsContainer() {
+  function findSignalsContainer() { const byText = Array.from(document.querySelectorAll("section, div")).find(el => el.id function findSignalsContainer() {function findSignalsContainer() { (el.id.toLowerCase().includes("signal") || el.id.toLowerCase().includes("sinyal"))); if (byText) return byText;
     const selectors = [
       '#aq-signals-workspace',
       '#tab-sinyal',
