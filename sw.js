@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aureus-quant-20261124205133';
+const CACHE_NAME = 'aureus-quant-20261125031736';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
   './indicators.js',
   './smc_engine.js',
   './smc_visualizer.js',
+  './session_dial_fab.js',
   './manifest.json'
 ];
 
