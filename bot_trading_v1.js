@@ -14,9 +14,10 @@
   };
 
   let cfg = Object.assign({}, DEFAULT_CFG, JSON.parse(localStorage.getItem('aq_bot_v1_cfg') || '{}'));
+  let pendingConfirmAction = null; // 'START' | 'STOP' | null
   let logs = [
-    { t: '15:15:02', msg: '[AUTO_TRADER] SMC Engine v2 siap · XAUUSD (H1)' },
-    { t: '15:15:10', msg: '[ISOLATION] Terkunci khusus di tab BOT AI' }
+    { t: '12:30:02', msg: '[AUTO_TRADER] SMC Engine v2 siap · XAUUSD (H1)' },
+    { t: '12:30:10', msg: '[ISOLATION] Terkunci khusus di tab BOT AI' }
   ];
 
   function nowTime() {
@@ -29,7 +30,21 @@
     renderBotAiOnly(true);
   }
 
-  // Bersihkan jika sempat menempel di Beranda atau di dalam Floating Radial Menu
+  async function syncControlToBackend(action) {
+    localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
+    const endpoints = ['/api/bot/control', '/bot_control'];
+    for (const ep of endpoints) {
+      try {
+        await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, config: cfg })
+        });
+        break;
+      } catch (_) {}
+    }
+  }
+
   function cleanLeaks() {
     const forbidden = [
       '#beranda', '#home', '#tab-beranda', '#dashboard',
@@ -44,7 +59,6 @@
     });
   }
 
-  // Cek ketat: hanya true jika tab BOT AI di bottom nav aktif & kartu Command Center AI sedang tampil
   function isStrictlyBotAiTab() {
     const ccCard = Array.from(document.querySelectorAll('div, section')).find(
       el => el.offsetParent !== null && el.children.length <= 6 && el.textContent && el.textContent.includes('Command Center AI')
@@ -85,6 +99,28 @@
     if (ws.dataset.rendered === '1' && !forceUpdate) return;
     ws.dataset.rendered = '1';
 
+    const confirmModalHtml = pendingConfirmAction ? `
+      <div class="aq-bt-modal-backdrop" id="aq-bt-confirm-backdrop">
+        <div class="aq-bt-modal-box">
+          <div class="aq-bt-modal-title">
+            ${pendingConfirmAction === 'START' ? '⚠️ Konfirmasi Jalankan Bot' : '⚠️ Konfirmasi Hentikan Bot'}
+          </div>
+          <div class="aq-bt-modal-desc">
+            ${pendingConfirmAction === 'START'
+              ? `Bot <b>auto_trader.py</b> akan mulai mengeksekusi sinyal SMC pada <b>${cfg.symbol} (${cfg.timeframe})</b> dengan lot dasar <b>${cfg.lotSize}</b> dan risiko <b>${cfg.riskPct}%</b>. Lanjutkan?`
+              : `Bot <b>auto_trader.py</b> akan dijeda dan berhenti membuka posisi baru pada <b>${cfg.symbol} (${cfg.timeframe})</b>. Yakin ingin menghentikan bot?`
+            }
+          </div>
+          <div class="aq-bt-modal-actions">
+            <button type="button" class="aq-bt-btn secondary" id="aq-bt-cancel-confirm">Batal</button>
+            <button type="button" class="aq-bt-btn ${pendingConfirmAction === 'START' ? 'start' : 'stop'}" id="aq-bt-accept-confirm">
+              ${pendingConfirmAction === 'START' ? 'Ya, Jalankan' : 'Ya, Hentikan'}
+            </button>
+          </div>
+        </div>
+      </div>
+    ` : '';
+
     ws.innerHTML = `
       <div id="aq-bot-trading-panel" style="padding:0">
         <div class="aq-bt-card">
@@ -110,9 +146,11 @@
             </div>
           </div>
 
-          <div class="aq-bt-power-row">
-            <button type="button" class="aq-bt-btn start" id="aq-bt-start-btn">▶ JALANKAN BOT</button>
-            <button type="button" class="aq-bt-btn stop" id="aq-bt-stop-btn">⏹ HENTIKAN BOT</button>
+          <!-- 1 Tombol Toggle Dinamis -->
+          <div class="aq-bt-single-action">
+            <button type="button" class="aq-bt-btn ${cfg.running ? 'stop' : 'start'}" id="aq-bt-toggle-btn">
+              ${cfg.running ? '⏹ HENTIKAN BOT' : '▶ JALANKAN BOT'}
+            </button>
           </div>
 
           <div class="aq-bt-form-grid">
@@ -168,19 +206,36 @@
           </div>
         </div>
       </div>
+      ${confirmModalHtml}
     `;
 
-    ws.querySelector('#aq-bt-start-btn').onclick = () => {
-      cfg.running = true;
-      localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
-      addLog('[SYSTEM] Engine auto_trader.py DIAKTIFKAN');
+    // Klik 1 Tombol Toggle -> Buka Modal Konfirmasi
+    ws.querySelector('#aq-bt-toggle-btn').onclick = () => {
+      pendingConfirmAction = cfg.running ? 'STOP' : 'START';
+      renderBotAiOnly(true);
     };
 
-    ws.querySelector('#aq-bt-stop-btn').onclick = () => {
-      cfg.running = false;
-      localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
-      addLog('[SYSTEM] Engine auto_trader.py DIJEDA');
-    };
+    // Event Modal Konfirmasi
+    if (pendingConfirmAction) {
+      ws.querySelector('#aq-bt-cancel-confirm').onclick = () => {
+        pendingConfirmAction = null;
+        renderBotAiOnly(true);
+      };
+
+      ws.querySelector('#aq-bt-accept-confirm').onclick = () => {
+        const execAction = pendingConfirmAction;
+        pendingConfirmAction = null;
+        if (execAction === 'START') {
+          cfg.running = true;
+          syncControlToBackend('START_BOT');
+          addLog('[SYSTEM] Konfirmasi diterima · auto_trader.py DIAKTIFKAN');
+        } else {
+          cfg.running = false;
+          syncControlToBackend('STOP_BOT');
+          addLog('[SYSTEM] Konfirmasi diterima · auto_trader.py DIHENTIKAN');
+        }
+      };
+    }
 
     ws.querySelector('#aq-bt-save-btn').onclick = () => {
       cfg.timeframe = ws.querySelector('#aq-cfg-tf').value;
@@ -191,11 +246,17 @@
       cfg.useFvg = ws.querySelector('#aq-cfg-fvg').checked;
       cfg.useEma200 = ws.querySelector('#aq-cfg-ema').checked;
       cfg.autoTrailing = ws.querySelector('#aq-cfg-trail').checked;
-      localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
+      syncControlToBackend('UPDATE_CONFIG');
       addLog(`[CONFIG] Tersimpan: TF=${cfg.timeframe}, Lot=${cfg.lotSize}, Risk=${cfg.riskPct}%`);
     };
   }
 
-  document.addEventListener('click', () => setTimeout(() => renderBotAiOnly(false), 60));
-  setInterval(() => renderBotAiOnly(false), 400);
+  document.addEventListener('click', (e) => {
+    // Jangan re-render paksa jika user sedang berinteraksi di dalam modal konfirmasi
+    if (e.target.closest('#aq-bt-confirm-backdrop')) return;
+    setTimeout(() => renderBotAiOnly(false), 60);
+  });
+  setInterval(() => {
+    if (!pendingConfirmAction) renderBotAiOnly(false);
+  }, 500);
 })();

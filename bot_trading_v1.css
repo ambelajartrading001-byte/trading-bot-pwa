@@ -187,3 +187,52 @@
 }
 .aq-bt-log-line { margin-bottom: 3px; }
 .aq-bt-log-time { color: #64748b; }
+
+/* === SINGLE TOGGLE BUTTON & CONFIRMATION MODAL === */
+.aq-bt-single-action {
+  margin-bottom: 12px;
+}
+.aq-bt-single-action .aq-bt-btn {
+  width: 100%;
+  padding: 13px 12px;
+  font-size: 13px;
+}
+
+.aq-bt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 12, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 99999;
+}
+.aq-bt-modal-box {
+  width: 100%;
+  max-width: 360px;
+  background: linear-gradient(165deg, #131a2b 0%, #0b0f19 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+  color: #f8fafc;
+}
+.aq-bt-modal-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.aq-bt-modal-desc {
+  font-size: 12.5px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.aq-bt-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
