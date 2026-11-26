@@ -1,5 +1,5 @@
 (function () {
-  const BRIDGE_BASE = localStorage.getItem('aq_bridge_url') || 'http://127.0.0.1:8787';
+  const BRIDGE_BASE = localStorage.getItem('aq_bridge_url') || 'https://ultra-directly-camcorder-statute.trycloudflare.com';
   const DEFAULT_CFG = {
     running: false,
     symbol: 'XAUUSD',

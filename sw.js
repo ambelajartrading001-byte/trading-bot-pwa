@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aureus-quant-exness-1795669049';
+const CACHE_NAME = 'aureus-quant-tunnel-1795683484';
 const ASSETS = [
   './',
   './index.html',
