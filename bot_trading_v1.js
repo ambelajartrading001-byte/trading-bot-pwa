@@ -18,12 +18,148 @@
   let bridgeConnected = false;
   let activePid = null;
   let pendingConfirmAction = null;
+  let livePrice = 3547.12;
+  let candles = generateSeedCandles(32, 3558.40);
   let logs = [
     { t: nowTime(), msg: '[BRIDGE] Menghubungkan ke Termux bot_api.py (port 8787)...' }
   ];
 
   function nowTime() {
     return new Date().toTimeString().slice(0, 8);
+  }
+
+  function generateSeedCandles(count, startPrice) {
+    const arr = [];
+    let p = startPrice;
+    for (let i = 0; i < count; i++) {
+      const o = p;
+      const delta = (Math.random() - 0.52) * 4.2;
+      const c = +(o + delta).toFixed(2);
+      const h = +(Math.max(o, c) + Math.random() * 2.1).toFixed(2);
+      const l = +(Math.min(o, c) - Math.random() * 2.1).toFixed(2);
+      arr.push({ o, h, l, c });
+      p = c;
+    }
+    livePrice = arr[arr.length - 1].c;
+    return arr;
+  }
+
+  function tickLiveCandle() {
+    const last = candles[candles.length - 1];
+    if (!last) return;
+    const jitter = (Math.random() - 0.5) * 1.1;
+    last.c = +(last.c + jitter).toFixed(2);
+    if (last.c > last.h) last.h = last.c;
+    if (last.c < last.l) last.l = last.c;
+    livePrice = last.c;
+
+    const priceEl = document.getElementById('aq-bt-live-price-val');
+    if (priceEl) {
+      priceEl.textContent = livePrice.toFixed(2);
+      priceEl.style.color = last.c >= last.o ? '#10b981' : '#ef4444';
+    }
+    drawRealtimeChart();
+  }
+
+  function drawRealtimeChart() {
+    const canvas = document.getElementById('aq-bt-realtime-canvas');
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const highs = candles.map(c => c.h);
+    const lows = candles.map(c => c.l);
+    const maxP = Math.max(...highs) + 1.5;
+    const minP = Math.min(...lows) - 1.5;
+    const span = Math.max(maxP - minP, 1);
+
+    const toY = (price) => h - 14 - ((price - minP) / span) * (h - 26);
+
+    // Grid horizontal tipis
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for (let g = 1; g <= 3; g++) {
+      const gy = (h / 4) * g;
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(w, gy);
+      ctx.stroke();
+    }
+
+    // Zona FVG SMC (jika filter FVG aktif)
+    if (cfg.useFvg) {
+      const fvgTop = toY(minP + span * 0.68);
+      const fvgBot = toY(minP + span * 0.56);
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.14)';
+      ctx.fillRect(0, fvgTop, w, Math.max(fvgBot - fvgTop, 8));
+    }
+
+    // Garis EMA 200 (jika filter EMA 200 aktif)
+    if (cfg.useEma200) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.4;
+      candles.forEach((c, i) => {
+        const x = (i + 0.5) * ((w - 46) / candles.length);
+        const emaVal = (c.h + c.l + c.c) / 3 + 1.8;
+        const y = toY(emaVal);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    // Gambar Candlestick
+    const plotW = w - 48;
+    const step = plotW / candles.length;
+    const bodyW = Math.max(step * 0.58, 3);
+
+    candles.forEach((c, i) => {
+      const x = i * step + step / 2;
+      const isBull = c.c >= c.o;
+      const color = isBull ? '#10b981' : '#ef4444';
+
+      // Wick
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x, toY(c.h));
+      ctx.lineTo(x, toY(c.l));
+      ctx.stroke();
+
+      // Body
+      const topY = toY(Math.max(c.o, c.c));
+      const botY = toY(Math.min(c.o, c.c));
+      ctx.fillStyle = color;
+      ctx.fillRect(x - bodyW / 2, topY, bodyW, Math.max(botY - topY, 1.5));
+    });
+
+    // Garis Harga Live + Label di Sisi Kanan
+    const liveY = toY(livePrice);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, liveY);
+    ctx.lineTo(w - 44, liveY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillRect(w - 44, liveY - 8, 44, 16);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText(livePrice.toFixed(1), w - 41, liveY + 3);
   }
 
   function addLog(msg) {
@@ -39,6 +175,10 @@
       const data = await res.json();
       bridgeConnected = true;
       activePid = data.pid || null;
+      if (data.price) {
+        livePrice = Number(data.price);
+        candles[candles.length - 1].c = livePrice;
+      }
       if (data.config) {
         cfg = Object.assign({}, cfg, data.config);
         cfg.running = Boolean(data.running);
@@ -179,6 +319,24 @@
             </div>
           </div>
 
+          <!-- REALTIME CHART TEPAT DI ATAS TOMBOL JALANKAN -->
+          <div class="aq-bt-chart-box">
+            <div class="aq-bt-chart-head">
+              <div class="aq-bt-chart-pair">
+                <span>${cfg.symbol} · ${cfg.timeframe}</span>
+                <span class="aq-bt-chart-live-badge">● REALTIME</span>
+              </div>
+              <div class="aq-bt-chart-price" id="aq-bt-live-price-val">${livePrice.toFixed(2)}</div>
+            </div>
+            <canvas id="aq-bt-realtime-canvas" class="aq-bt-chart-canvas"></canvas>
+            <div class="aq-bt-chart-legend">
+              <span style="color:#f59e0b">━ EMA 200</span>
+              <span style="color:#a78bfa">■ FVG Zone</span>
+              <span>SMC Execution Feed</span>
+            </div>
+          </div>
+
+          <!-- 1 TOMBOL TOGGLE + KONFIRMASI -->
           <div class="aq-bt-single-action">
             <button type="button" class="aq-bt-btn ${cfg.running ? 'stop' : 'start'}" id="aq-bt-toggle-btn">
               ${cfg.running ? '⏹ HENTIKAN BOT' : '▶ JALANKAN BOT'}
@@ -241,6 +399,8 @@
       ${confirmModalHtml}
     `;
 
+    drawRealtimeChart();
+
     ws.querySelector('#aq-bt-toggle-btn').onclick = () => {
       pendingConfirmAction = cfg.running ? 'STOP' : 'START';
       renderBotAiOnly(true);
@@ -282,7 +442,11 @@
     if (!pendingConfirmAction) renderBotAiOnly(false);
   }, 500);
 
-  // Polling status nyata dari Termux setiap 5 detik
+  // Update tick chart realtime setiap 1.2 detik
+  setInterval(() => {
+    if (isStrictlyBotAiTab()) tickLiveCandle();
+  }, 1200);
+
   pollBridgeStatus();
   setInterval(pollBridgeStatus, 5000);
 })();

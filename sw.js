@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aureus-quant-bridge-1795668314';
+const CACHE_NAME = 'aureus-quant-rtchart-1795668529';
 const ASSETS = [
   './',
   './index.html',
