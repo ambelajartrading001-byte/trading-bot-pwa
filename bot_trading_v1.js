@@ -1,6 +1,7 @@
 (function () {
+  const BRIDGE_BASE = localStorage.getItem('aq_bridge_url') || 'http://127.0.0.1:8787';
   const DEFAULT_CFG = {
-    running: true,
+    running: false,
     symbol: 'XAUUSD',
     timeframe: 'H1',
     accountType: 'Exness Cent / Demo',
@@ -14,10 +15,11 @@
   };
 
   let cfg = Object.assign({}, DEFAULT_CFG, JSON.parse(localStorage.getItem('aq_bot_v1_cfg') || '{}'));
-  let pendingConfirmAction = null; // 'START' | 'STOP' | null
+  let bridgeConnected = false;
+  let activePid = null;
+  let pendingConfirmAction = null;
   let logs = [
-    { t: '12:30:02', msg: '[AUTO_TRADER] SMC Engine v2 siap · XAUUSD (H1)' },
-    { t: '12:30:10', msg: '[ISOLATION] Terkunci khusus di tab BOT AI' }
+    { t: nowTime(), msg: '[BRIDGE] Menghubungkan ke Termux bot_api.py (port 8787)...' }
   ];
 
   function nowTime() {
@@ -30,18 +32,47 @@
     renderBotAiOnly(true);
   }
 
+  async function pollBridgeStatus() {
+    try {
+      const res = await fetch(`${BRIDGE_BASE}/api/bot/status?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      bridgeConnected = true;
+      activePid = data.pid || null;
+      if (data.config) {
+        cfg = Object.assign({}, cfg, data.config);
+        cfg.running = Boolean(data.running);
+        localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
+      }
+      if (Array.isArray(data.logs) && data.logs.length) {
+        logs = data.logs.slice().reverse().map(line => ({ t: 'LIVE', msg: line }));
+      }
+      if (!pendingConfirmAction) renderBotAiOnly(true);
+    } catch (_) {
+      if (bridgeConnected) {
+        bridgeConnected = false;
+        addLog('[WARN] Koneksi ke bot_api.py (127.0.0.1:8787) terputus');
+      }
+    }
+  }
+
   async function syncControlToBackend(action) {
     localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
-    const endpoints = ['/api/bot/control', '/bot_control'];
-    for (const ep of endpoints) {
-      try {
-        await fetch(ep, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, config: cfg })
-        });
-        break;
-      } catch (_) {}
+    try {
+      const res = await fetch(`${BRIDGE_BASE}/api/bot/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, config: cfg })
+      });
+      const data = await res.json();
+      bridgeConnected = true;
+      activePid = data.pid || null;
+      cfg.running = Boolean(data.running);
+      localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
+      addLog(`[TERMUX] ${data.message || action}`);
+    } catch (err) {
+      bridgeConnected = false;
+      addLog('[ERROR] Gagal menghubungi bot_api.py. Pastikan bot_api.py aktif di Termux!');
     }
   }
 
@@ -64,10 +95,8 @@
       el => el.offsetParent !== null && el.children.length <= 6 && el.textContent && el.textContent.includes('Command Center AI')
     );
     if (!ccCard) return false;
-
     const parentId = (ccCard.parentElement?.id || '').toLowerCase();
     if (parentId.includes('beranda') || parentId.includes('home')) return false;
-
     return true;
   }
 
@@ -107,8 +136,8 @@
           </div>
           <div class="aq-bt-modal-desc">
             ${pendingConfirmAction === 'START'
-              ? `Bot <b>auto_trader.py</b> akan mulai mengeksekusi sinyal SMC pada <b>${cfg.symbol} (${cfg.timeframe})</b> dengan lot dasar <b>${cfg.lotSize}</b> dan risiko <b>${cfg.riskPct}%</b>. Lanjutkan?`
-              : `Bot <b>auto_trader.py</b> akan dijeda dan berhenti membuka posisi baru pada <b>${cfg.symbol} (${cfg.timeframe})</b>. Yakin ingin menghentikan bot?`
+              ? `Perintah akan dikirim ke Termux untuk menyalakan <b>auto_trader.py</b> pada <b>${cfg.symbol} (${cfg.timeframe})</b> · Lot <b>${cfg.lotSize}</b> · Risk <b>${cfg.riskPct}%</b>. Lanjutkan?`
+              : `Proses <b>auto_trader.py</b> ${activePid ? `(PID ${activePid})` : ''} di Termux akan dihentikan. Yakin ingin menghentikan bot?`
             }
           </div>
           <div class="aq-bt-modal-actions">
@@ -125,10 +154,14 @@
       <div id="aq-bot-trading-panel" style="padding:0">
         <div class="aq-bt-card">
           <div class="aq-bt-header">
-            <div class="aq-bt-title">🤖 BOT TRADING OTONOM (V1)</div>
+            <div class="aq-bt-title">🤖 BOT TRADING OTONOM</div>
             <span class="aq-bt-status-pill ${cfg.running ? 'online' : 'offline'}">
-              ${cfg.running ? '● ENGINE AKTIF' : '■ BERHENTI'}
+              ${cfg.running ? `● AKTIF ${activePid ? '(PID ' + activePid + ')' : ''}` : '■ BERHENTI'}
             </span>
+          </div>
+
+          <div style="font-size:10.5px;margin-bottom:10px;padding:6px 9px;border-radius:8px;background:${bridgeConnected ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'};color:${bridgeConnected ? '#34d399' : '#fbbf24'};font-weight:700">
+            ${bridgeConnected ? '🔗 Termux API Bridge Terhubung (127.0.0.1:8787)' : '⏳ Mode Offline · Menunggu bot_api.py di Termux'}
           </div>
 
           <div class="aq-bt-metrics">
@@ -146,7 +179,6 @@
             </div>
           </div>
 
-          <!-- 1 Tombol Toggle Dinamis -->
           <div class="aq-bt-single-action">
             <button type="button" class="aq-bt-btn ${cfg.running ? 'stop' : 'start'}" id="aq-bt-toggle-btn">
               ${cfg.running ? '⏹ HENTIKAN BOT' : '▶ JALANKAN BOT'}
@@ -198,7 +230,7 @@
           </div>
 
           <button type="button" class="aq-bt-btn secondary" id="aq-bt-save-btn" style="width:100%;margin-top:10px;border-color:#3b82f6;color:#60a5fa">
-            💾 SIMPAN & SINKRONKAN PARAMETER
+            💾 SIMPAN KE BOT_CONFIG.JSON
           </button>
 
           <div class="aq-bt-console" style="margin-top:10px">
@@ -209,35 +241,26 @@
       ${confirmModalHtml}
     `;
 
-    // Klik 1 Tombol Toggle -> Buka Modal Konfirmasi
     ws.querySelector('#aq-bt-toggle-btn').onclick = () => {
       pendingConfirmAction = cfg.running ? 'STOP' : 'START';
       renderBotAiOnly(true);
     };
 
-    // Event Modal Konfirmasi
     if (pendingConfirmAction) {
       ws.querySelector('#aq-bt-cancel-confirm').onclick = () => {
         pendingConfirmAction = null;
         renderBotAiOnly(true);
       };
 
-      ws.querySelector('#aq-bt-accept-confirm').onclick = () => {
+      ws.querySelector('#aq-bt-accept-confirm').onclick = async () => {
         const execAction = pendingConfirmAction;
         pendingConfirmAction = null;
-        if (execAction === 'START') {
-          cfg.running = true;
-          syncControlToBackend('START_BOT');
-          addLog('[SYSTEM] Konfirmasi diterima · auto_trader.py DIAKTIFKAN');
-        } else {
-          cfg.running = false;
-          syncControlToBackend('STOP_BOT');
-          addLog('[SYSTEM] Konfirmasi diterima · auto_trader.py DIHENTIKAN');
-        }
+        renderBotAiOnly(true);
+        await syncControlToBackend(execAction === 'START' ? 'START_BOT' : 'STOP_BOT');
       };
     }
 
-    ws.querySelector('#aq-bt-save-btn').onclick = () => {
+    ws.querySelector('#aq-bt-save-btn').onclick = async () => {
       cfg.timeframe = ws.querySelector('#aq-cfg-tf').value;
       cfg.lotSize = ws.querySelector('#aq-cfg-lot').value;
       cfg.riskPct = ws.querySelector('#aq-cfg-risk').value;
@@ -246,17 +269,20 @@
       cfg.useFvg = ws.querySelector('#aq-cfg-fvg').checked;
       cfg.useEma200 = ws.querySelector('#aq-cfg-ema').checked;
       cfg.autoTrailing = ws.querySelector('#aq-cfg-trail').checked;
-      syncControlToBackend('UPDATE_CONFIG');
-      addLog(`[CONFIG] Tersimpan: TF=${cfg.timeframe}, Lot=${cfg.lotSize}, Risk=${cfg.riskPct}%`);
+      await syncControlToBackend('UPDATE_CONFIG');
     };
   }
 
   document.addEventListener('click', (e) => {
-    // Jangan re-render paksa jika user sedang berinteraksi di dalam modal konfirmasi
     if (e.target.closest('#aq-bt-confirm-backdrop')) return;
     setTimeout(() => renderBotAiOnly(false), 60);
   });
+
   setInterval(() => {
     if (!pendingConfirmAction) renderBotAiOnly(false);
   }, 500);
+
+  // Polling status nyata dari Termux setiap 5 detik
+  pollBridgeStatus();
+  setInterval(pollBridgeStatus, 5000);
 })();

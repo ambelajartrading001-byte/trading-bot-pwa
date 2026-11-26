@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aureus-quant-toggle-confirm-1795667560';
+const CACHE_NAME = 'aureus-quant-bridge-1795668314';
 const ASSETS = [
   './',
   './index.html',
