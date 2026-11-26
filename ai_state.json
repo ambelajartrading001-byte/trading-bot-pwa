@@ -1,16 +1,8 @@
 {
-  "updated_at": "2026-11-26 10:33:33 UTC",
-  "last_price": 3566.8,
-  "daily_pnl": -27.75,
-  "open_trade": {
-    "side": "BUY",
-    "entry": 3566.8,
-    "sl": 3561.93,
-    "tp": 3576.55,
-    "highest": 3566.8,
-    "lot": 0.05,
-    "opened_at": "2026-11-26T10:33:33.322742+00:00"
-  },
+  "updated_at": "2026-11-26 10:34:09 UTC",
+  "last_price": 3562.0,
+  "daily_pnl": -51.75,
+  "open_trade": null,
   "trades": [
     {
       "timestamp": "2026-11-23T09:25:52.132179+00:00",
@@ -294,6 +286,18 @@
       "exit": "3572.00",
       "reason": "SL / Chandelier",
       "pnl": -10.0
+    },
+    {
+      "timestamp": "2026-11-26T10:34:09.080219+00:00",
+      "closed_at": "2026-11-26T10:34:09.080219+00:00",
+      "dateStr": "26 Nov",
+      "time": "10:34:09",
+      "side": "BUY",
+      "lot": "0.05",
+      "entry": "3566.80",
+      "exit": "3562.00",
+      "reason": "SL / Chandelier",
+      "pnl": -24.0
     }
   ]
 }
