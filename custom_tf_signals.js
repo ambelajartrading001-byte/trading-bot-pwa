@@ -1,30 +1,42 @@
 (function () {
-  const TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1', 'W1'];
+  const TF_MAP = {
+    'M1': '1',
+    'M5': '5',
+    'M15': '15',
+    'M30': '30',
+    'H1': '60',
+    'H4': '240',
+    'D1': 'D',
+    'W1': 'W'
+  };
+  const TIMEFRAMES = Object.keys(TF_MAP);
   let activeTF = localStorage.getItem('aq_selected_tf') || 'H1';
+  if (!TF_MAP[activeTF]) activeTF = 'H1';
 
-  function injectChartStyles() {
-    if (document.getElementById('aq-clean-chart-style')) return;
+  function injectTvStyles() {
+    if (document.getElementById('aq-tv-chart-style')) return;
     const style = document.createElement('style');
-    style.id = 'aq-clean-chart-style';
+    style.id = 'aq-tv-chart-style';
     style.textContent = `
-      /* Sembunyikan panel sinyal/ekstra di dalam tab Grafik agar fokus grafik saja */
+      /* Sembunyikan panel sinyal & canvas lama agar tab GRAFIK murni TradingView */
       #aq-chart-workspace .aq-signals-panel,
       #aq-chart-workspace .signal-list,
       #aq-chart-workspace .smc-signals-box,
-      #aq-chart-workspace #aq-signals-hub {
+      #aq-chart-workspace #aq-signals-hub,
+      #aq-chart-workspace > canvas {
         display: none !important;
       }
 
       #aq-chart-workspace {
         display: flex;
         flex-direction: column;
-        padding: 8px 8px 84px 8px;
+        padding: 8px 8px 86px 8px;
         background: #080b12;
         min-height: calc(100vh - 64px);
         box-sizing: border-box;
       }
 
-      /* Bar Timeframe Horizontal M1 - W1 di atas canvas */
+      /* Bar Timeframe M1 - W1 */
       #aq-tf-bar {
         display: grid;
         grid-template-columns: repeat(8, 1fr);
@@ -53,7 +65,7 @@
 
       .aq-tf-btn:hover {
         color: #f8fafc;
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.06);
       }
 
       .aq-tf-btn.active {
@@ -62,57 +74,93 @@
         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
       }
 
-      /* Pastikan area chart mengisi penuh layar dengan nyaman */
-      #aq-chart-workspace canvas,
-      #aq-chart-workspace .tv-lightweight-charts,
-      #aq-chart-workspace #chart-container {
-        width: 100% !important;
-        min-height: 70vh !important;
+      /* Kontainer TradingView Advanced Chart */
+      #aq-tv-widget-shell {
+        width: 100%;
+        height: 74vh;
+        min-height: 460px;
         border-radius: 12px;
         overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        background: #0b0f19;
+      }
+
+      #aq-tv-widget-container,
+      #aq-tv-widget-container > div,
+      #aq-tv-widget-container iframe {
+        width: 100% !important;
+        height: 100% !important;
       }
     `;
     document.head.appendChild(style);
   }
 
-  function triggerTimeframeChange(tf) {
+  function renderTradingViewWidget(tfLabel) {
+    const shell = document.getElementById('aq-tv-widget-shell');
+    if (!shell) return;
+
+    const interval = TF_MAP[tfLabel] || '60';
+    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Makassar';
+
+    shell.innerHTML = `<div id="aq-tv-widget-container"></div>`;
+    const container = document.getElementById('aq-tv-widget-container');
+
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      autosize: true,
+      symbol: 'OANDA:XAUUSD',
+      interval: interval,
+      timezone: userTz,
+      theme: 'dark',
+      style: '1',
+      locale: 'id',
+      backgroundColor: '#0b0f19',
+      gridColor: 'rgba(255, 255, 255, 0.05)',
+      enable_publishing: false,
+      withdateranges: true,
+      hide_side_toolbar: false,
+      allow_symbol_change: true,
+      save_image: true,
+      details: false,
+      hotlist: false,
+      calendar: false,
+      studies: [
+        'STD;EMA'
+      ],
+      support_host: 'https://www.tradingview.com'
+    });
+
+    container.appendChild(script);
+  }
+
+  function setTimeframe(tf) {
+    if (!TF_MAP[tf]) return;
     activeTF = tf;
     localStorage.setItem('aq_selected_tf', tf);
 
-    // Update tampilan tombol aktif
     document.querySelectorAll('.aq-tf-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tf === tf);
     });
 
-    // 1. Panggil fungsi global chart jika tersedia di app.js
-    if (typeof window.setChartTimeframe === 'function') {
-      window.setChartTimeframe(tf);
-    } else if (typeof window.changeTimeframe === 'function') {
-      window.changeTimeframe(tf);
-    } else if (typeof window.loadChartData === 'function') {
-      window.loadChartData(tf);
-    }
-
-    // 2. Sinkronkan dengan <select> bawaan jika ada
-    const nativeSelect = document.querySelector('#aq-chart-workspace select, #timeframe-select');
-    if (nativeSelect) {
-      nativeSelect.value = tf;
-      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    // 3. Dispatch custom event agar listener lain ikut ter-update
+    renderTradingViewWidget(tf);
     window.dispatchEvent(new CustomEvent('aq:timeframe-changed', { detail: { timeframe: tf } }));
   }
 
-  function mountTimeframeBar() {
+  function mountTradingViewWorkspace() {
     const workspace = document.getElementById('aq-chart-workspace');
     if (!workspace) return;
 
-    injectChartStyles();
+    injectTvStyles();
 
-    // Hapus bar lama/dropdown lama jika ada
-    const oldDropdown = workspace.querySelector('.aq-tf-dropdown, #aq-tf-select-wrap');
-    if (oldDropdown) oldDropdown.remove();
+    // Bersihkan elemen lama di dalam workspace kecuali bar & shell TradingView
+    Array.from(workspace.children).forEach(child => {
+      if (child.id !== 'aq-tf-bar' && child.id !== 'aq-tv-widget-shell') {
+        child.style.display = 'none';
+      }
+    });
 
     let bar = document.getElementById('aq-tf-bar');
     if (!bar) {
@@ -128,17 +176,25 @@
     `).join('');
 
     bar.querySelectorAll('.aq-tf-btn').forEach(btn => {
-      btn.onclick = () => triggerTimeframeChange(btn.dataset.tf);
+      btn.onclick = () => setTimeframe(btn.dataset.tf);
     });
+
+    let shell = document.getElementById('aq-tv-widget-shell');
+    if (!shell) {
+      shell = document.createElement('div');
+      shell.id = 'aq-tv-widget-shell';
+      workspace.appendChild(shell);
+      renderTradingViewWidget(activeTF);
+    }
   }
 
-  document.addEventListener('DOMContentLoaded', mountTimeframeBar);
-  if (document.readyState !== 'loading') mountTimeframeBar();
+  document.addEventListener('DOMContentLoaded', mountTradingViewWorkspace);
+  if (document.readyState !== 'loading') mountTradingViewWorkspace();
 
-  // Pantau jika DOM tab grafik di-render ulang secara dinamis
   const observer = new MutationObserver(() => {
-    if (document.getElementById('aq-chart-workspace') && !document.getElementById('aq-tf-bar')) {
-      mountTimeframeBar();
+    const ws = document.getElementById('aq-chart-workspace');
+    if (ws && (!document.getElementById('aq-tf-bar') || !document.getElementById('aq-tv-widget-shell'))) {
+      mountTradingViewWorkspace();
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });

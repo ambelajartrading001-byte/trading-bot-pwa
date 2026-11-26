@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aureus-quant-tabpersist-1795668607';
+const CACHE_NAME = 'aureus-quant-tvchart-1795668841';
 const ASSETS = [
   './',
   './index.html',
