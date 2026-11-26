@@ -8,6 +8,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BASE_DIR = "/root/trading-bot-pwa"
 CONFIG_FILE = os.path.join(BASE_DIR, "bot_config.json")
+EXNESS_FILE = os.path.join(BASE_DIR, "exness_account.json")
+SIGNAL_QUEUE_FILE = os.path.join(BASE_DIR, "exness_pending_signal.json")
 PID_FILE = os.path.join(BASE_DIR, "auto_trader.pid")
 LOG_FILE = os.path.join(BASE_DIR, "auto_trader.log")
 TRADER_SCRIPT = os.path.join(BASE_DIR, "auto_trader.py")
@@ -26,19 +28,32 @@ DEFAULT_CONFIG = {
     "autoTrailing": True
 }
 
-def load_config():
-    if os.path.exists(CONFIG_FILE):
+DEFAULT_EXNESS = {
+    "connected": False,
+    "login": "",
+    "server": "Exness-MT5Trial8",
+    "mode": "DEMO",
+    "symbolSuffix": "m",
+    "balance": 0.0,
+    "equity": 0.0,
+    "freeMargin": 0.0,
+    "floatingPnl": 0.0,
+    "openPositions": 0,
+    "lastHeartbeat": 0
+}
+
+def read_json(path, fallback):
+    if os.path.exists(path):
         try:
-            with open(CONFIG_FILE, "r") as f:
-                data = json.load(f)
-                return {**DEFAULT_CONFIG, **data}
+            with open(path, "r") as f:
+                return {**fallback, **json.load(f)}
         except Exception:
             pass
-    return DEFAULT_CONFIG.copy()
+    return fallback.copy()
 
-def save_config(cfg):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(cfg, f, indent=2)
+def write_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
 def is_trader_running():
     if os.path.exists(PID_FILE):
@@ -50,7 +65,6 @@ def is_trader_running():
         except Exception:
             if os.path.exists(PID_FILE):
                 os.remove(PID_FILE)
-    # Cek via pgrep sebagai cadangan
     try:
         out = subprocess.check_output(["pgrep", "-f", "auto_trader.py"]).decode().strip()
         if out:
@@ -78,9 +92,9 @@ def start_trader():
     )
     with open(PID_FILE, "w") as f:
         f.write(str(proc.pid))
-    cfg = load_config()
+    cfg = read_json(CONFIG_FILE, DEFAULT_CONFIG)
     cfg["running"] = True
-    save_config(cfg)
+    write_json(CONFIG_FILE, cfg)
     return True, f"auto_trader.py dijalankan (PID {proc.pid})"
 
 def stop_trader():
@@ -94,9 +108,9 @@ def stop_trader():
     subprocess.run(["pkill", "-f", "auto_trader.py"], stderr=subprocess.DEVNULL)
     if os.path.exists(PID_FILE):
         os.remove(PID_FILE)
-    cfg = load_config()
+    cfg = read_json(CONFIG_FILE, DEFAULT_CONFIG)
     cfg["running"] = False
-    save_config(cfg)
+    write_json(CONFIG_FILE, cfg)
     return True, "auto_trader.py dihentikan dengan aman"
 
 def tail_logs(lines=15):
@@ -127,32 +141,43 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/bot/status"):
             running, pid = is_trader_running()
-            cfg = load_config()
+            cfg = read_json(CONFIG_FILE, DEFAULT_CONFIG)
             cfg["running"] = running
+            ex = read_json(EXNESS_FILE, DEFAULT_EXNESS)
+            # Anggap MT5 aktif jika heartbeat < 45 detik terakhir
+            ex["mt5Online"] = (time.time() - float(ex.get("lastHeartbeat", 0))) < 45
             self._send_json(200, {
                 "ok": True,
                 "running": running,
                 "pid": pid,
                 "config": cfg,
+                "exness": ex,
                 "logs": tail_logs(15)
             })
+        elif self.path.startswith("/api/exness/signal"):
+            # Dibaca oleh EA MT5 setiap detik untuk mengambil order baru
+            if os.path.exists(SIGNAL_QUEUE_FILE):
+                sig = read_json(SIGNAL_QUEUE_FILE, {})
+                os.remove(SIGNAL_QUEUE_FILE)
+                self._send_json(200, {"ok": True, "hasSignal": True, "signal": sig})
+            else:
+                self._send_json(200, {"ok": True, "hasSignal": False})
         else:
             self._send_json(404, {"ok": False, "error": "Not found"})
 
     def do_POST(self):
-        if self.path.startswith("/api/bot/control"):
-            length = int(self.headers.get("Content-Length", 0))
-            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
-            try:
-                body = json.loads(raw)
-            except Exception:
-                body = {}
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+        try:
+            body = json.loads(raw)
+        except Exception:
+            body = {}
 
+        if self.path.startswith("/api/bot/control"):
             action = body.get("action", "")
             incoming_cfg = body.get("config")
             if isinstance(incoming_cfg, dict):
-                merged = {**load_config(), **incoming_cfg}
-                save_config(merged)
+                write_json(CONFIG_FILE, {**read_json(CONFIG_FILE, DEFAULT_CONFIG), **incoming_cfg})
 
             if action == "START_BOT":
                 ok, msg = start_trader()
@@ -169,9 +194,40 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 "message": msg,
                 "running": running,
                 "pid": pid,
-                "config": load_config(),
+                "config": read_json(CONFIG_FILE, DEFAULT_CONFIG),
+                "exness": read_json(EXNESS_FILE, DEFAULT_EXNESS),
                 "logs": tail_logs(15)
             })
+
+        elif self.path.startswith("/api/exness/config"):
+            ex = {**read_json(EXNESS_FILE, DEFAULT_EXNESS), **body, "connected": True}
+            write_json(EXNESS_FILE, ex)
+            with open(LOG_FILE, "a") as lf:
+                lf.write(f"[EXNESS] Akun MT5 {ex.get('login')} ({ex.get('server')} · {ex.get('mode')}) terkonfigurasi\n")
+            self._send_json(200, {"ok": True, "message": "Kredensial Exness tersimpan", "exness": ex})
+
+        elif self.path.startswith("/api/exness/telemetry"):
+            # Dikirim oleh EA MT5 untuk memperbarui saldo & floating PnL di PWA
+            ex = read_json(EXNESS_FILE, DEFAULT_EXNESS)
+            ex.update({
+                "connected": True,
+                "balance": float(body.get("balance", ex["balance"])),
+                "equity": float(body.get("equity", ex["equity"])),
+                "freeMargin": float(body.get("freeMargin", ex["freeMargin"])),
+                "floatingPnl": float(body.get("floatingPnl", ex["floatingPnl"])),
+                "openPositions": int(body.get("openPositions", ex["openPositions"])),
+                "lastHeartbeat": time.time()
+            })
+            write_json(EXNESS_FILE, ex)
+            self._send_json(200, {"ok": True})
+
+        elif self.path.startswith("/api/exness/push_signal"):
+            # Dipanggil oleh auto_trader.py saat setup SMC valid ditemukan
+            write_json(SIGNAL_QUEUE_FILE, body)
+            with open(LOG_FILE, "a") as lf:
+                lf.write(f"[ORDER-QUEUE] Sinyal {body.get('side')} {body.get('symbol')} Lot={body.get('lot')} SL={body.get('sl')} TP={body.get('tp')}\n")
+            self._send_json(200, {"ok": True, "queued": True})
+
         else:
             self._send_json(404, {"ok": False, "error": "Not found"})
 
@@ -180,7 +236,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     if not os.path.exists(CONFIG_FILE):
-        save_config(DEFAULT_CONFIG)
+        write_json(CONFIG_FILE, DEFAULT_CONFIG)
+    if not os.path.exists(EXNESS_FILE):
+        write_json(EXNESS_FILE, DEFAULT_EXNESS)
     server = HTTPServer(("0.0.0.0", 8787), BridgeHandler)
-    print("[Aureus Bridge] Listening on http://0.0.0.0:8787")
+    print("[Aureus Bridge + Exness] Listening on http://0.0.0.0:8787")
     server.serve_forever()

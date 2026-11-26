@@ -14,7 +14,22 @@
     autoTrailing: true
   };
 
+  const DEFAULT_EXNESS = {
+    connected: false,
+    mt5Online: false,
+    login: '',
+    server: 'Exness-MT5Trial8',
+    mode: 'DEMO',
+    symbolSuffix: 'm',
+    balance: 0,
+    equity: 0,
+    freeMargin: 0,
+    floatingPnl: 0,
+    openPositions: 0
+  };
+
   let cfg = Object.assign({}, DEFAULT_CFG, JSON.parse(localStorage.getItem('aq_bot_v1_cfg') || '{}'));
+  let exness = Object.assign({}, DEFAULT_EXNESS, JSON.parse(localStorage.getItem('aq_exness_cfg') || '{}'));
   let bridgeConnected = false;
   let activePid = null;
   let pendingConfirmAction = null;
@@ -85,7 +100,6 @@
 
     const toY = (price) => h - 14 - ((price - minP) / span) * (h - 26);
 
-    // Grid horizontal tipis
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
     for (let g = 1; g <= 3; g++) {
@@ -96,7 +110,6 @@
       ctx.stroke();
     }
 
-    // Zona FVG SMC (jika filter FVG aktif)
     if (cfg.useFvg) {
       const fvgTop = toY(minP + span * 0.68);
       const fvgBot = toY(minP + span * 0.56);
@@ -104,7 +117,6 @@
       ctx.fillRect(0, fvgTop, w, Math.max(fvgBot - fvgTop, 8));
     }
 
-    // Garis EMA 200 (jika filter EMA 200 aktif)
     if (cfg.useEma200) {
       ctx.beginPath();
       ctx.strokeStyle = '#f59e0b';
@@ -119,7 +131,6 @@
       ctx.stroke();
     }
 
-    // Gambar Candlestick
     const plotW = w - 48;
     const step = plotW / candles.length;
     const bodyW = Math.max(step * 0.58, 3);
@@ -129,7 +140,6 @@
       const isBull = c.c >= c.o;
       const color = isBull ? '#10b981' : '#ef4444';
 
-      // Wick
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.2;
       ctx.beginPath();
@@ -137,14 +147,12 @@
       ctx.lineTo(x, toY(c.l));
       ctx.stroke();
 
-      // Body
       const topY = toY(Math.max(c.o, c.c));
       const botY = toY(Math.min(c.o, c.c));
       ctx.fillStyle = color;
       ctx.fillRect(x - bodyW / 2, topY, bodyW, Math.max(botY - topY, 1.5));
     });
 
-    // Garis Harga Live + Label di Sisi Kanan
     const liveY = toY(livePrice);
     ctx.setLineDash([3, 3]);
     ctx.strokeStyle = '#38bdf8';
@@ -175,24 +183,21 @@
       const data = await res.json();
       bridgeConnected = true;
       activePid = data.pid || null;
-      if (data.price) {
-        livePrice = Number(data.price);
-        candles[candles.length - 1].c = livePrice;
-      }
       if (data.config) {
         cfg = Object.assign({}, cfg, data.config);
         cfg.running = Boolean(data.running);
         localStorage.setItem('aq_bot_v1_cfg', JSON.stringify(cfg));
+      }
+      if (data.exness) {
+        exness = Object.assign({}, exness, data.exness);
+        localStorage.setItem('aq_exness_cfg', JSON.stringify(exness));
       }
       if (Array.isArray(data.logs) && data.logs.length) {
         logs = data.logs.slice().reverse().map(line => ({ t: 'LIVE', msg: line }));
       }
       if (!pendingConfirmAction) renderBotAiOnly(true);
     } catch (_) {
-      if (bridgeConnected) {
-        bridgeConnected = false;
-        addLog('[WARN] Koneksi ke bot_api.py (127.0.0.1:8787) terputus');
-      }
+      bridgeConnected = false;
     }
   }
 
@@ -212,7 +217,23 @@
       addLog(`[TERMUX] ${data.message || action}`);
     } catch (err) {
       bridgeConnected = false;
-      addLog('[ERROR] Gagal menghubungi bot_api.py. Pastikan bot_api.py aktif di Termux!');
+      addLog('[ERROR] Gagal menghubungi bot_api.py (127.0.0.1:8787)');
+    }
+  }
+
+  async function saveExnessAccount() {
+    localStorage.setItem('aq_exness_cfg', JSON.stringify(exness));
+    try {
+      const res = await fetch(`${BRIDGE_BASE}/api/exness/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exness)
+      });
+      const data = await res.json();
+      if (data.exness) exness = Object.assign({}, exness, data.exness);
+      addLog(`[EXNESS] Akun ${exness.login} (${exness.server}) terhubung ke Bridge`);
+    } catch (_) {
+      addLog('[EXNESS] Tersimpan lokal · Jalankan bot_api.py di Termux untuk sinkronisasi');
     }
   }
 
@@ -276,8 +297,8 @@
           </div>
           <div class="aq-bt-modal-desc">
             ${pendingConfirmAction === 'START'
-              ? `Perintah akan dikirim ke Termux untuk menyalakan <b>auto_trader.py</b> pada <b>${cfg.symbol} (${cfg.timeframe})</b> · Lot <b>${cfg.lotSize}</b> · Risk <b>${cfg.riskPct}%</b>. Lanjutkan?`
-              : `Proses <b>auto_trader.py</b> ${activePid ? `(PID ${activePid})` : ''} di Termux akan dihentikan. Yakin ingin menghentikan bot?`
+              ? `Bot akan mengeksekusi sinyal SMC ke akun Exness <b>${exness.login || '(Belum diisi)'}</b> (${exness.mode}) pada <b>${cfg.symbol}${exness.symbolSuffix} (${cfg.timeframe})</b> · Lot <b>${cfg.lotSize}</b>. Lanjutkan?`
+              : `Proses <b>auto_trader.py</b> ${activePid ? `(PID ${activePid})` : ''} akan dihentikan. Yakin ingin menghentikan bot?`
             }
           </div>
           <div class="aq-bt-modal-actions">
@@ -292,6 +313,65 @@
 
     ws.innerHTML = `
       <div id="aq-bot-trading-panel" style="padding:0">
+        <!-- KARTU KONEKSI BROKER EXNESS -->
+        <div class="aq-bt-card">
+          <div class="aq-bt-header">
+            <div class="aq-bt-title">🏦 KONEKSI AKUN EXNESS MT5</div>
+            <span class="aq-bt-status-pill ${exness.mt5Online ? 'online' : 'offline'}">
+              ${exness.mt5Online ? '● MT5 TERHUBUNG' : '○ MT5 STANDBY'}
+            </span>
+          </div>
+
+          <div class="aq-bt-metrics">
+            <div class="aq-bt-mbox">
+              <div class="aq-bt-mlbl">SALDO / BALANCE</div>
+              <div class="aq-bt-mval" style="color:#f8fafc">${Number(exness.balance || 0).toFixed(2)}</div>
+            </div>
+            <div class="aq-bt-mbox">
+              <div class="aq-bt-mlbl">EQUITY</div>
+              <div class="aq-bt-mval" style="color:#38bdf8">${Number(exness.equity || 0).toFixed(2)}</div>
+            </div>
+            <div class="aq-bt-mbox">
+              <div class="aq-bt-mlbl">FLOATING P&L</div>
+              <div class="aq-bt-mval" style="color:${Number(exness.floatingPnl) >= 0 ? '#10b981' : '#ef4444'}">
+                ${Number(exness.floatingPnl) >= 0 ? '+' : ''}${Number(exness.floatingPnl || 0).toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          <div class="aq-bt-form-grid">
+            <div class="aq-bt-field">
+              <label>NO. AKUN MT5 EXNESS</label>
+              <input type="text" id="aq-ex-login" placeholder="Contoh: 184920145" value="${exness.login || ''}" />
+            </div>
+            <div class="aq-bt-field">
+              <label>SERVER EXNESS</label>
+              <input type="text" id="aq-ex-server" placeholder="Exness-MT5Trial8" value="${exness.server || 'Exness-MT5Trial8'}" />
+            </div>
+            <div class="aq-bt-field">
+              <label>TIPE AKUN</label>
+              <select id="aq-ex-mode">
+                <option value="DEMO" ${exness.mode === 'DEMO' ? 'selected' : ''}>Demo (Forward-Test)</option>
+                <option value="CENT" ${exness.mode === 'CENT' ? 'selected' : ''}>Standard Cent (USC)</option>
+                <option value="REAL" ${exness.mode === 'REAL' ? 'selected' : ''}>Standard / Pro Real</option>
+              </select>
+            </div>
+            <div class="aq-bt-field">
+              <label>SUFFIX SIMBOL PAIR</label>
+              <select id="aq-ex-suffix">
+                <option value="m" ${exness.symbolSuffix === 'm' ? 'selected' : ''}>XAUUSDm (Cent/Micro)</option>
+                <option value="" ${exness.symbolSuffix === '' ? 'selected' : ''}>XAUUSD (Standard)</option>
+                <option value="c" ${exness.symbolSuffix === 'c' ? 'selected' : ''}>XAUUSDc (Cent Lama)</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="button" class="aq-bt-btn secondary" id="aq-ex-connect-btn" style="width:100%;border-color:#f59e0b;color:#fbbf24">
+            🔗 HUBUNGKAN & SIMPAN AKUN EXNESS
+          </button>
+        </div>
+
+        <!-- KARTU BOT TRADING OTONOM + REALTIME CHART -->
         <div class="aq-bt-card">
           <div class="aq-bt-header">
             <div class="aq-bt-title">🤖 BOT TRADING OTONOM</div>
@@ -300,30 +380,10 @@
             </span>
           </div>
 
-          <div style="font-size:10.5px;margin-bottom:10px;padding:6px 9px;border-radius:8px;background:${bridgeConnected ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'};color:${bridgeConnected ? '#34d399' : '#fbbf24'};font-weight:700">
-            ${bridgeConnected ? '🔗 Termux API Bridge Terhubung (127.0.0.1:8787)' : '⏳ Mode Offline · Menunggu bot_api.py di Termux'}
-          </div>
-
-          <div class="aq-bt-metrics">
-            <div class="aq-bt-mbox">
-              <div class="aq-bt-mlbl">AKUN</div>
-              <div class="aq-bt-mval" style="font-size:11px;color:#38bdf8">${cfg.accountType}</div>
-            </div>
-            <div class="aq-bt-mbox">
-              <div class="aq-bt-mlbl">STRATEGI</div>
-              <div class="aq-bt-mval" style="color:#c4b5fd">SMC v2</div>
-            </div>
-            <div class="aq-bt-mbox">
-              <div class="aq-bt-mlbl">BACKTEST</div>
-              <div class="aq-bt-mval" style="color:#10b981">+6.8% (1.94)</div>
-            </div>
-          </div>
-
-          <!-- REALTIME CHART TEPAT DI ATAS TOMBOL JALANKAN -->
           <div class="aq-bt-chart-box">
             <div class="aq-bt-chart-head">
               <div class="aq-bt-chart-pair">
-                <span>${cfg.symbol} · ${cfg.timeframe}</span>
+                <span>${cfg.symbol}${exness.symbolSuffix || ''} · ${cfg.timeframe}</span>
                 <span class="aq-bt-chart-live-badge">● REALTIME</span>
               </div>
               <div class="aq-bt-chart-price" id="aq-bt-live-price-val">${livePrice.toFixed(2)}</div>
@@ -332,11 +392,10 @@
             <div class="aq-bt-chart-legend">
               <span style="color:#f59e0b">━ EMA 200</span>
               <span style="color:#a78bfa">■ FVG Zone</span>
-              <span>SMC Execution Feed</span>
+              <span>Exness ${exness.mode} Bridge</span>
             </div>
           </div>
 
-          <!-- 1 TOMBOL TOGGLE + KONFIRMASI -->
           <div class="aq-bt-single-action">
             <button type="button" class="aq-bt-btn ${cfg.running ? 'stop' : 'start'}" id="aq-bt-toggle-btn">
               ${cfg.running ? '⏹ HENTIKAN BOT' : '▶ JALANKAN BOT'}
@@ -345,8 +404,8 @@
 
           <div class="aq-bt-form-grid">
             <div class="aq-bt-field">
-              <label>PAIR / INSTRUMEN</label>
-              <input type="text" value="${cfg.symbol}" readonly />
+              <label>PAIR EKSEKUSI</label>
+              <input type="text" value="${cfg.symbol}${exness.symbolSuffix || ''}" readonly />
             </div>
             <div class="aq-bt-field">
               <label>TIMEFRAME</label>
@@ -388,7 +447,7 @@
           </div>
 
           <button type="button" class="aq-bt-btn secondary" id="aq-bt-save-btn" style="width:100%;margin-top:10px;border-color:#3b82f6;color:#60a5fa">
-            💾 SIMPAN KE BOT_CONFIG.JSON
+            💾 SIMPAN PARAMETER TRADING
           </button>
 
           <div class="aq-bt-console" style="margin-top:10px">
@@ -400,6 +459,14 @@
     `;
 
     drawRealtimeChart();
+
+    ws.querySelector('#aq-ex-connect-btn').onclick = async () => {
+      exness.login = ws.querySelector('#aq-ex-login').value.trim();
+      exness.server = ws.querySelector('#aq-ex-server').value.trim();
+      exness.mode = ws.querySelector('#aq-ex-mode').value;
+      exness.symbolSuffix = ws.querySelector('#aq-ex-suffix').value;
+      await saveExnessAccount();
+    };
 
     ws.querySelector('#aq-bt-toggle-btn').onclick = () => {
       pendingConfirmAction = cfg.running ? 'STOP' : 'START';
@@ -442,7 +509,6 @@
     if (!pendingConfirmAction) renderBotAiOnly(false);
   }, 500);
 
-  // Update tick chart realtime setiap 1.2 detik
   setInterval(() => {
     if (isStrictlyBotAiTab()) tickLiveCandle();
   }, 1200);
